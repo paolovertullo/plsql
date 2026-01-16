@@ -1,4 +1,5 @@
 CREATE OR REPLACE package body PVERTULLO.pkg_calcoli_premi_manifest
+AUTHID CURRENT_USER
 as
     -- VERSIONE 0.3.1 del 29/10/2025 
     --      Rinfozo i calcoli con i dati forniti dai comitati per tutte le discipline inizio con Allevatoriale
