@@ -22,7 +22,7 @@ Connettiti a Oracle con SQL*Plus o SQL Developer:
 
 ```sql
 -- Connessione
-sqlplus UNIRE_REL2/password@database
+sqlplus PVERTULLO/password@database
 
 -- Compila i package
 @01_compile_packages.sql
@@ -30,7 +30,7 @@ sqlplus UNIRE_REL2/password@database
 
 Verifica che non ci siano errori di compilazione. Se ci sono errori, verifica:
 - Privilegi sulle tabelle
-- Schema corretto (UNIRE_REL2 per il package, PVERTULLO per tc_test_snapshot)
+- Schema PVERTULLO (sia per il package che per tc_test_snapshot)
 
 ### Passo 2: Setup Ambiente Test
 

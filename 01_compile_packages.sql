@@ -4,7 +4,7 @@
 -- ============================================================================
 
 -- Imposta lo schema corretto
--- ALTER SESSION SET CURRENT_SCHEMA = UNIRE_REL2;
+-- ALTER SESSION SET CURRENT_SCHEMA = PVERTULLO;
 
 PROMPT ============================================================================
 PROMPT Compilazione PKG_CALCOLI_PREMI_MANIFEST - PACKAGE SPEC
