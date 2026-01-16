@@ -1,4 +1,4 @@
-CREATE OR REPLACE package body UNIRE_REL2.pkg_calcoli_premi_manifest 
+CREATE OR REPLACE package body PVERTULLO.pkg_calcoli_premi_manifest
 as
     -- VERSIONE 0.3.1 del 29/10/2025 
     --      Rinfozo i calcoli con i dati forniti dai comitati per tutte le discipline inizio con Allevatoriale
@@ -19,7 +19,7 @@ as
     is
         l_risultati   t_tabella_premi;
         v_dummy       number;
-        v_rec         unire_rel2.pkg_calcoli_premi_manifest.t_premio_rec;
+        v_rec         pvertullo.pkg_calcoli_premi_manifest.t_premio_rec;
     begin
         -- Questo metodo � richiamato come API dal BackEnd  NON PUO FARE UPDATE
 
@@ -2091,8 +2091,8 @@ end;
             then
                 -- Montepremi
                 p_montepremi := case when v_is_finale
-                                    then CASE p_anno WHEN 2025 THEN C_2025_SO_CC_CRIT_7OLTRE_FINALE ELSE C_2025_SO_CC_CRIT_7OLTRE_FINALE END
-                                    else CASE p_anno WHEN 2025 THEN C_2025_SO_CC_CRIT_7OLTRE_PROVA ELSE C_2025_SO_CC_CRIT_7OLTRE_PROVA END
+                                    then CASE p_anno WHEN 2025 THEN C_2025_SO_CC_CRIT_7P_FINALE ELSE C_2025_SO_CC_CRIT_7P_FINALE END
+                                    else CASE p_anno WHEN 2025 THEN C_2025_SO_CC_CRIT_7P_PROVA ELSE C_2025_SO_CC_CRIT_7P_PROVA END
                                end;  -- valori criterium
                 
                 -- Descrizione
@@ -4065,7 +4065,7 @@ END fn_periodo_salto_ostacoli;
         pipelined
     is
         l_risultati              t_tabella_premi;
-        v_rec                    unire_rel2.pkg_calcoli_premi_manifest.t_premio_rec;
+        v_rec                    pvertullo.pkg_calcoli_premi_manifest.t_premio_rec;
         -- v_disciplina             VARCHAR2 (50);
         v_categoria              varchar2 (50);
         v_eta                    number;
@@ -4216,7 +4216,7 @@ END fn_periodo_salto_ostacoli;
         pipelined
     is
         l_risultati    t_tabella_premi;
-        v_rec          unire_rel2.pkg_calcoli_premi_manifest.t_premio_rec;
+        v_rec          pvertullo.pkg_calcoli_premi_manifest.t_premio_rec;
         -- v_categoria      VARCHAR2 (50);
         v_montepremi   number := 0;
         --v_num_partenti   NUMBER;
@@ -4302,7 +4302,7 @@ END fn_periodo_salto_ostacoli;
     is
         v_dati_gara   tc_dati_gara_esterna%rowtype;
         l_risultati   t_tabella_premi;
-        v_rec         unire_rel2.pkg_calcoli_premi_manifest.t_premio_rec;
+        v_rec         pvertullo.pkg_calcoli_premi_manifest.t_premio_rec;
         v_premio      number;
     begin
         l_risultati := t_tabella_premi ();
@@ -4347,7 +4347,7 @@ END fn_periodo_salto_ostacoli;
     is
         v_dati_gara   tc_dati_gara_esterna%rowtype;
         l_risultati   t_tabella_premi;
-        v_rec         unire_rel2.pkg_calcoli_premi_manifest.t_premio_rec;
+        v_rec         pvertullo.pkg_calcoli_premi_manifest.t_premio_rec;
         v_premio      number;
     begin
         l_risultati := t_tabella_premi ();
@@ -4395,7 +4395,7 @@ END fn_periodo_salto_ostacoli;
     is
         v_dati_gara   tc_dati_gara_esterna%rowtype;
         l_risultati   t_tabella_premi;
-        v_rec         unire_rel2.pkg_calcoli_premi_manifest.t_premio_rec;
+        v_rec         pvertullo.pkg_calcoli_premi_manifest.t_premio_rec;
         v_premio      number;
     begin
         l_risultati := t_tabella_premi ();
@@ -4728,7 +4728,7 @@ function handler_salto_ostacoli (p_gara_id in number, p_anno in number default 2
                                 when v_classifica(i).posizione_fise = 1 then CASE v_anno_effettivo WHEN 2025 THEN C_2025_SO_LANAKEN_FINALE_1 ELSE C_2025_SO_LANAKEN_FINALE_1 END
                                 when v_classifica(i).posizione_fise between 2 and 5 then CASE v_anno_effettivo WHEN 2025 THEN C_2025_SO_LANAKEN_FINALE_2_5 ELSE C_2025_SO_LANAKEN_FINALE_2_5 END
                                 when v_classifica(i).posizione_fise between 6 and 10 then CASE v_anno_effettivo WHEN 2025 THEN C_2025_SO_LANAKEN_FINALE_6_10 ELSE C_2025_SO_LANAKEN_FINALE_6_10 END
-                                else CASE v_anno_effettivo WHEN 2025 THEN C_2025_SO_LANAKEN_FINALE_OLTRE ELSE C_2025_SO_LANAKEN_FINALE_OLTRE END
+                                else CASE v_anno_effettivo WHEN 2025 THEN C_2025_SO_LNKN_FIN_OLTRE ELSE C_2025_SO_LNKN_FIN_OLTRE END
                             end;
                         -- Qualifiche e finale consolazione
                         else
