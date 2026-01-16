@@ -20,7 +20,7 @@ AS
         RETURN t_tabella_premi
         PIPELINED;
 
-    -- Simula il calcolo premi di una gara, senza salvarne l¿esito.
+    -- Simula il calcolo premi di una gara, senza salvarne lï¿½esito.
     -- Utilizzato a scopo previsionale.
     FUNCTION FN_CALCOLO_PREMI_MANIFEST_SIM (p_gara_id        IN NUMBER,
                                             p_num_partenti   IN NUMBER)
@@ -31,7 +31,7 @@ AS
     FUNCTION FN_DESC_TIPOLOGICA (p_codice IN NUMBER)
         RETURN VARCHAR2;
 
-    -- Verifica se una gara è premiata dal MASAF.0 non è premiata 1 è premiata
+    -- Verifica se una gara ï¿½ premiata dal MASAF.0 non ï¿½ premiata 1 ï¿½ premiata
     FUNCTION FN_GARA_PREMIATA_MASAF (p_id_gara_esterna IN NUMBER)
         RETURN NUMBER;
 
@@ -96,13 +96,145 @@ AS
     TYPE T_MAPPATURA_PREMI IS TABLE OF T_PREMIO_ELEMENT
         INDEX BY PLS_INTEGER;
 
+    ---------------------------------------------------------------------------
+    -- SEZIONE PARAMETRI CONFIGURABILI PER ANNO
+    ---------------------------------------------------------------------------
+    -- Questa sezione contiene tutti i parametri che possono cambiare
+    -- annualmente secondo il disciplinare MASAF
+    ---------------------------------------------------------------------------
+
+    ---------------------------------------------------------------------------
+    -- ANNO 2025 - PARAMETRI SALTO OSTACOLI
+    ---------------------------------------------------------------------------
+
+    -- CSIO ROMA - MASTER TALENT PIAZZA DI SIENA
+    C_2025_SO_CSIO_7_FINALE        CONSTANT NUMBER := 5000;
+    C_2025_SO_CSIO_7_PROVA         CONSTANT NUMBER := 3500;
+    C_2025_SO_CSIO_6_FINALE        CONSTANT NUMBER := 4000;
+    C_2025_SO_CSIO_6_PROVA         CONSTANT NUMBER := 2000;
+
+    -- FINALE CIRCUITO CLASSICO - CRITERIUM
+    C_2025_SO_CC_CRIT_4_FINALE     CONSTANT NUMBER := 3700;
+    C_2025_SO_CC_CRIT_4_PROVA      CONSTANT NUMBER := 1300;
+    C_2025_SO_CC_CRIT_5_FINALE     CONSTANT NUMBER := 3700;
+    C_2025_SO_CC_CRIT_5_PROVA      CONSTANT NUMBER := 1300;
+    C_2025_SO_CC_CRIT_67_FINALE    CONSTANT NUMBER := 3800;
+    C_2025_SO_CC_CRIT_67_PROVA     CONSTANT NUMBER := 1300;
+    C_2025_SO_CC_CRIT_7OLTRE_FINALE CONSTANT NUMBER := 3700;
+    C_2025_SO_CC_CRIT_7OLTRE_PROVA  CONSTANT NUMBER := 1300;
+    C_2025_SO_CC_CRIT_8_FINALE     CONSTANT NUMBER := 4000;
+    C_2025_SO_CC_CRIT_8_PROVA      CONSTANT NUMBER := 2000;
+
+    -- FINALE CIRCUITO CLASSICO - CAMPIONATO
+    C_2025_SO_CC_CAMP_4_FINALE     CONSTANT NUMBER := 20000;
+    C_2025_SO_CC_CAMP_4_PROVA      CONSTANT NUMBER := 10000;
+    C_2025_SO_CC_CAMP_5_FINALE     CONSTANT NUMBER := 20000;
+    C_2025_SO_CC_CAMP_5_PROVA      CONSTANT NUMBER := 12000;
+    C_2025_SO_CC_CAMP_67_FINALE    CONSTANT NUMBER := 24000;
+    C_2025_SO_CC_CAMP_67_PROVA     CONSTANT NUMBER := 8000;
+    C_2025_SO_CC_CAMP_8_FINALE     CONSTANT NUMBER := 20000;
+    C_2025_SO_CC_CAMP_8_PROVA      CONSTANT NUMBER := 8000;
+    C_2025_SO_CC_CAMP_8_PROVA3     CONSTANT NUMBER := 10000;
+
+    -- CATEGORIA SPORT
+    C_2025_SO_SPORT_EURO_PART      CONSTANT NUMBER := 50;
+    C_2025_SO_SPORT_MIN_PART       CONSTANT NUMBER := 6;
+
+    -- CATEGORIA BREVETTO (7+ anni)
+    C_2025_SO_BREVETTO_EURO_PART   CONSTANT NUMBER := 50;
+    C_2025_SO_BREVETTO_MIN_PART    CONSTANT NUMBER := 6;
+
+    -- CATEGORIA SELEZIONE - Montepremi fissi per etÃ  e giornata
+    C_2025_SO_SEL_5_G1             CONSTANT NUMBER := 2000;
+    C_2025_SO_SEL_5_G2             CONSTANT NUMBER := 2000;
+    C_2025_SO_SEL_5_G3             CONSTANT NUMBER := 3500;
+    C_2025_SO_SEL_6_G1             CONSTANT NUMBER := 2500;
+    C_2025_SO_SEL_6_G2             CONSTANT NUMBER := 2500;
+    C_2025_SO_SEL_6_G3             CONSTANT NUMBER := 4000;
+    C_2025_SO_SEL_7_G1             CONSTANT NUMBER := 3000;
+    C_2025_SO_SEL_7_G2             CONSTANT NUMBER := 3000;
+    C_2025_SO_SEL_7_G3             CONSTANT NUMBER := 4500;
+
+    -- CATEGORIA ELITE/ALTO - Euro per partente per etÃ  e periodo
+    C_2025_SO_ELITE_4_P1           CONSTANT NUMBER := 135;
+    C_2025_SO_ELITE_4_P2           CONSTANT NUMBER := 150;
+    C_2025_SO_ELITE_5_P1           CONSTANT NUMBER := 135;
+    C_2025_SO_ELITE_5_P2           CONSTANT NUMBER := 150;
+    C_2025_SO_ELITE_MIN_PART       CONSTANT NUMBER := 6;
+
+    -- CATEGORIA ELITE/ALTO 6 ANNI - Periodo 1
+    C_2025_SO_ELITE_6_P1_G1_PART   CONSTANT NUMBER := 150;
+    C_2025_SO_ELITE_6_P1_G2        CONSTANT NUMBER := 2400;
+    C_2025_SO_ELITE_6_P1_G3        CONSTANT NUMBER := 3500;
+    -- CATEGORIA ELITE/ALTO 6 ANNI - Periodo 2
+    C_2025_SO_ELITE_6_P2_G2        CONSTANT NUMBER := 2900;
+    C_2025_SO_ELITE_6_P2_G3        CONSTANT NUMBER := 4400;
+
+    -- CATEGORIA ELITE/ALTO 7 ANNI - Periodo 1
+    C_2025_SO_ELITE_7_P1_G3        CONSTANT NUMBER := 3800;
+    C_2025_SO_ELITE_7_P1_G12       CONSTANT NUMBER := 2700;
+    -- CATEGORIA ELITE/ALTO 7 ANNI - Periodo 2
+    C_2025_SO_ELITE_7_P2_G3        CONSTANT NUMBER := 5000;
+    C_2025_SO_ELITE_7_P2_G12       CONSTANT NUMBER := 3300;
+
+    -- CAMPIONATO MONDO GIOVANI CAVALLI (LANAKEN)
+    C_2025_SO_LANAKEN_CONTRIB      CONSTANT NUMBER := 2000;
+    C_2025_SO_LANAKEN_FINALE_1     CONSTANT NUMBER := 6000;
+    C_2025_SO_LANAKEN_FINALE_2_5   CONSTANT NUMBER := 3600;
+    C_2025_SO_LANAKEN_FINALE_6_10  CONSTANT NUMBER := 2400;
+    C_2025_SO_LANAKEN_FINALE_OLTRE CONSTANT NUMBER := 2000;
+    C_2025_SO_LANAKEN_QUAL_1       CONSTANT NUMBER := 1000;
+    C_2025_SO_LANAKEN_QUAL_2_5     CONSTANT NUMBER := 600;
+    C_2025_SO_LANAKEN_QUAL_6_10    CONSTANT NUMBER := 400;
+
+    -- PERCENTUALI SPLIT GIUDIZIO/PRECISIONE
+    C_2025_SO_PERC_SPORT_GIU       CONSTANT NUMBER := 1.0;   -- 100%
+    C_2025_SO_PERC_SPORT_PREC      CONSTANT NUMBER := 0.0;   -- 0%
+    C_2025_SO_PERC_ELITE4_GIU      CONSTANT NUMBER := 0.5;   -- 50%
+    C_2025_SO_PERC_ELITE4_PREC     CONSTANT NUMBER := 0.5;   -- 50%
+    C_2025_SO_PERC_ELITE5_GIU      CONSTANT NUMBER := 0.4;   -- 40%
+    C_2025_SO_PERC_ELITE5_PREC     CONSTANT NUMBER := 0.6;   -- 60%
+
+    -- INCENTIVO 10% FISE
+    C_2025_SO_INCENTIVO_FISE_PERC  CONSTANT NUMBER := 0.1;   -- 10%
+
+    -- PERCENTUALI DISTRIBUZIONE MASAF (uguali per tutti gli anni)
+    C_MASAF_FASCIA_1_PERC          CONSTANT NUMBER := 0.5;   -- 50%
+    C_MASAF_FASCIA_2_PERC          CONSTANT NUMBER := 0.3;   -- 30%
+    C_MASAF_FASCIA_3_PERC          CONSTANT NUMBER := 0.2;   -- 20%
+
+    ---------------------------------------------------------------------------
+    -- ANNO 2026 - PARAMETRI SALTO OSTACOLI
+    -- TODO: Popolare quando disponibili i nuovi valori del disciplinare 2026
+    ---------------------------------------------------------------------------
+    C_2026_SO_CSIO_7_FINALE        CONSTANT NUMBER := 5000;  -- DA AGGIORNARE
+    C_2026_SO_CSIO_7_PROVA         CONSTANT NUMBER := 3500;  -- DA AGGIORNARE
+    C_2026_SO_CSIO_6_FINALE        CONSTANT NUMBER := 4000;  -- DA AGGIORNARE
+    C_2026_SO_CSIO_6_PROVA         CONSTANT NUMBER := 2000;  -- DA AGGIORNARE
+    -- ... altri parametri 2026 da aggiungere quando disponibili
+
+    ---------------------------------------------------------------------------
+    -- FINE SEZIONE PARAMETRI CONFIGURABILI
+    ---------------------------------------------------------------------------
+
+    -- Procedure helper per MERGE in tc_test_snapshot (testing non regressione)
+    PROCEDURE MERGE_TEST_SNAPSHOT(
+        p_gara_id              IN NUMBER,
+        p_disciplina_id        IN NUMBER,
+        p_cavallo_id           IN NUMBER,
+        p_nome_cavallo         IN VARCHAR2,
+        p_posizione            IN NUMBER,
+        p_premio_calcolato     IN NUMBER,
+        p_note_calcolo         IN VARCHAR2,
+        p_versione_algoritmo   IN VARCHAR2);
+
     PROCEDURE CALCOLA_FASCE_PREMIABILI_MASAF (
         p_classifica    IN     t_classifica,
         p_montepremi    IN     NUMBER,
         p_premiabili    IN     NUMBER,
-        p_priorita_fasce_alte   in     boolean default false,  
-        -- false (default, salto ostacoli): riempi F3 ¿ F2 ¿ F1 (pochi partecipanti = fasce basse) true (allevatoriale): riempi F1 ¿ F2 ¿ F3 (pochi partecipanti = fasce alte)
-        -- TRUE per allevatoriale perchè assegna F1 se 1 solo partecipante - F1 e F2 per due partecipanti, FALSE per salto ad ostacoli assegna F3 se 1 solo partecipante e F2 e F3 se 2 partecipanti
+        p_priorita_fasce_alte   in     boolean default false,
+        -- false (default, salto ostacoli): riempi F3 ï¿½ F2 ï¿½ F1 (pochi partecipanti = fasce basse) true (allevatoriale): riempi F1 ï¿½ F2 ï¿½ F3 (pochi partecipanti = fasce alte)
+        -- TRUE per allevatoriale perchï¿½ assegna F1 se 1 solo partecipante - F1 e F2 per due partecipanti, FALSE per salto ad ostacoli assegna F3 se 1 solo partecipante e F2 e F3 se 2 partecipanti
         p_mappa_premi      OUT t_mappatura_premi,
         p_desc_fasce OUT VARCHAR2);
 
@@ -111,6 +243,7 @@ AS
         p_periodo     IN NUMBER,
         p_num_part    IN NUMBER,
         p_giornata    IN NUMBER,
+        p_anno        IN NUMBER DEFAULT 2025,
         p_desc_calcolo_premio OUT varchar2,
         p_montepremi    OUT NUMBER)
         ;
@@ -138,7 +271,7 @@ AS
         RETURN NUMBER;
 
     --aggiorna le fk di cavalli che hanno null nella tc_dati_classifica_esterna per una gara
-    --è un fallback per casi di mancato riconoscimento
+    --ï¿½ un fallback per casi di mancato riconoscimento
     PROCEDURE aggiorna_fk_cavallo_classifica (p_gara_id NUMBER);
 
     -- Ricava la disciplina associata ad una gara esterna.
@@ -223,22 +356,24 @@ AS
         PIPELINED;
 
     -- Handler di calcolo premi per disciplina
-    FUNCTION HANDLER_SALTO_OSTACOLI (p_gara_id IN NUMBER)
+    -- p_anno: Anno di riferimento (default 2025) - usa parametri specifici dell'anno
+    -- p_modalita_test: Se TRUE inserisce in tc_test_snapshot, se FALSE aggiorna tc_dati_classifica_esterna (default FALSE)
+    FUNCTION HANDLER_SALTO_OSTACOLI (p_gara_id IN NUMBER, p_anno IN NUMBER DEFAULT 2025, p_modalita_test IN BOOLEAN DEFAULT FALSE)
         RETURN t_tabella_premi;
 
-    FUNCTION HANDLER_DRESSAGE (p_gara_id IN NUMBER)
+    FUNCTION HANDLER_DRESSAGE (p_gara_id IN NUMBER, p_anno IN NUMBER DEFAULT 2025, p_modalita_test IN BOOLEAN DEFAULT FALSE)
         RETURN t_tabella_premi;
 
-    FUNCTION HANDLER_ENDURANCE (p_gara_id IN NUMBER)
+    FUNCTION HANDLER_ENDURANCE (p_gara_id IN NUMBER, p_anno IN NUMBER DEFAULT 2025, p_modalita_test IN BOOLEAN DEFAULT FALSE)
         RETURN t_tabella_premi;
 
-    FUNCTION HANDLER_ALLEVATORIALE (p_gara_id IN NUMBER)
+    FUNCTION HANDLER_ALLEVATORIALE (p_gara_id IN NUMBER, p_anno IN NUMBER DEFAULT 2025, p_modalita_test IN BOOLEAN DEFAULT FALSE)
         RETURN t_tabella_premi;
 
-    FUNCTION HANDLER_COMPLETO (p_gara_id IN NUMBER)
+    FUNCTION HANDLER_COMPLETO (p_gara_id IN NUMBER, p_anno IN NUMBER DEFAULT 2025, p_modalita_test IN BOOLEAN DEFAULT FALSE)
         RETURN t_tabella_premi;
 
-    FUNCTION HANDLER_MONTA_DA_LAVORO (p_gara_id IN NUMBER)
+    FUNCTION HANDLER_MONTA_DA_LAVORO (p_gara_id IN NUMBER, p_anno IN NUMBER DEFAULT 2025, p_modalita_test IN BOOLEAN DEFAULT FALSE)
         RETURN t_tabella_premi;
 
     -- Dispatcher principale: invoca il calcolo premi per la gara specificata
@@ -294,7 +429,7 @@ AS
         p_premio_cavallo                  OUT NUMBER);
 
     -- Calcola e registra i premi FOALS per una o due gare specifiche.
-    -- Se il numero di partenti è insufficiente, gestisce la classifica unica.
+    -- Se il numero di partenti ï¿½ insufficiente, gestisce la classifica unica.
     PROCEDURE CALCOLA_PREMIO_FOALS_2025 (
         p_id_gara_1   IN NUMBER,
         p_id_gara_2   IN NUMBER DEFAULT NULL);
