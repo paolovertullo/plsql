@@ -12,6 +12,44 @@ AS
 
     TYPE t_tabella_premi IS TABLE OF t_premio_rec;
 
+    -- TYPE per TC_DATI_GARA_ESTERNA (sostituisce %ROWTYPE per compatibilita' privilegi)
+    -- Definizione esplicita basata sulla struttura della tabella UNIRE_REL2.TC_DATI_GARA_ESTERNA
+    TYPE t_dati_gara_rec IS RECORD (
+        fk_sequ_id_dati_ediz_esterna      NUMBER(12),
+        sequ_id_dati_gara_esterna         NUMBER(12),
+        fk_sequ_id_gara_manifestazioni    NUMBER(12),
+        codi_gara_esterna                 VARCHAR2(10),
+        desc_nome_gara_esterna            VARCHAR2(100),
+        data_gara_esterna                 CHAR(8),
+        desc_gruppo_categoria             VARCHAR2(50),
+        desc_codice_categoria             VARCHAR2(50),
+        desc_altezza_ostacoli             VARCHAR2(50),
+        flag_gran_premio                  NUMBER(1),
+        codi_utente_inserimento           VARCHAR2(20),
+        dttm_inserimento                  DATE,
+        codi_utente_aggiornamento         VARCHAR2(20),
+        dttm_aggiornamento                DATE,
+        flag_prova_a_squadre              NUMBER(1),
+        nume_mance                        NUMBER(2),
+        codi_prontuario                   VARCHAR2(50),
+        nume_cavalli_italiani             VARCHAR2(5),
+        desc_formula                      VARCHAR2(50),
+        data_dressage                     VARCHAR2(8),
+        data_cross                        VARCHAR2(8),
+        fk_codi_categoria                 NUMBER,
+        fk_codi_tipo_classifica           NUMBER,
+        fk_codi_livello_cavallo           NUMBER,
+        fk_codi_tipo_evento               NUMBER,
+        fk_codi_tipo_prova                NUMBER,
+        fk_codi_regola_sesso              NUMBER,
+        fk_codi_regola_libro              NUMBER,
+        fk_codi_eta                       NUMBER,
+        flag_premio_masaf                 NUMBER(1),
+        fk_sequ_id_documenti              NUMBER(12),
+        fk_sequ_id_nomina_funzionario     NUMBER(12),
+        desc_calcolo_premi                VARCHAR2(1500)
+    );
+
 
 
     -- Restituisce una tabella premi per una gara specifica,
@@ -239,7 +277,7 @@ AS
         p_desc_fasce OUT VARCHAR2);
 
     PROCEDURE FN_CALCOLA_MONTEPREMI_SALTO (
-        p_dati_gara   IN tc_dati_gara_esterna%ROWTYPE,
+        p_dati_gara   IN t_dati_gara_rec,
         p_periodo     IN NUMBER,
         p_num_part    IN NUMBER,
         p_giornata    IN NUMBER,
@@ -249,24 +287,24 @@ AS
         ;
 
     FUNCTION FN_CALCOLA_MONTEPREMI_ALLEV (
-        p_dati_gara   IN tc_dati_gara_esterna%ROWTYPE,
+        p_dati_gara   IN t_dati_gara_rec,
         p_num_part    IN NUMBER)
         RETURN NUMBER;
         
     FUNCTION FN_CALCOLA_MONTEPREMI_COMPLETO (
-        p_dati_gara   IN tc_dati_gara_esterna%ROWTYPE,
+        p_dati_gara   IN t_dati_gara_rec,
         p_num_part    IN NUMBER)
         RETURN NUMBER;
 
     PROCEDURE FN_CALCOLA_N_PREMIABILI_MASAF (
-        p_dati_gara   IN tc_dati_gara_esterna%ROWTYPE,
+        p_dati_gara   IN t_dati_gara_rec,
         p_num_part    IN NUMBER,
         p_n_premiabili OUT NUMBER,
         p_desc_premiabili OUT VARCHAR2);
      --   RETURN NUMBER;
 
     FUNCTION FN_CONTA_PARIMERITO (
-        p_dati_gara   IN tc_dati_gara_esterna%ROWTYPE,
+        p_dati_gara   IN t_dati_gara_rec,
         p_posizione   IN NUMBER)
         RETURN NUMBER;
 
@@ -280,7 +318,7 @@ AS
 
     -- Restituisce tutte le informazioni associate ad una gara esterna.
     FUNCTION FN_INFO_GARA_ESTERNA (p_gara_id IN NUMBER)
-        RETURN tc_dati_gara_esterna%ROWTYPE;
+        RETURN t_dati_gara_rec;
 
     TYPE tc_dati_gara_esterna_obj IS RECORD
     (
@@ -399,7 +437,7 @@ AS
 
     -- Procedure di calcolo premio per cavallo (per disciplina e anno)
     PROCEDURE CALCOLA_PREMIO_SALTO_OST_2025 (
-        p_dati_gara                    IN     tc_dati_gara_esterna%ROWTYPE,
+        p_dati_gara                    IN     t_dati_gara_rec,
         p_posizione                    IN     NUMBER,
         p_SEQU_ID_CLASSIFICA_ESTERNA   IN     NUMBER,
         p_mappa_premi                  IN     PKG_CALCOLI_PREMI_MANIFEST.T_MAPPATURA_PREMI,
@@ -407,7 +445,7 @@ AS
  
 
     PROCEDURE CALCOLA_PREMIO_ENDURANCE_2025 (
-        p_dati_gara                    IN     tc_dati_gara_esterna%ROWTYPE,
+        p_dati_gara                    IN     t_dati_gara_rec,
         p_posizione                    IN     NUMBER,
         p_montepremi_tot               IN     NUMBER,
         p_num_con_parimerito           IN     NUMBER,
@@ -422,7 +460,7 @@ AS
 --    p_premio_cavallo                  OUT NUMBER);
 
     PROCEDURE CALCOLA_PREMIO_ALLEV_2025 (
-        p_dati_gara                    IN     tc_dati_gara_esterna%ROWTYPE,
+        p_dati_gara                    IN     t_dati_gara_rec,
         p_posizione                    IN     NUMBER,
         p_SEQU_ID_CLASSIFICA_ESTERNA   IN     NUMBER,
         p_mappa_premi                  IN     PKG_CALCOLI_PREMI_MANIFEST.T_MAPPATURA_PREMI,
@@ -435,7 +473,7 @@ AS
         p_id_gara_2   IN NUMBER DEFAULT NULL);
 
     PROCEDURE CALCOLA_PREMIO_COMPLETO_2025 (
-        p_dati_gara                    IN     tc_dati_gara_esterna%ROWTYPE,
+        p_dati_gara                    IN     t_dati_gara_rec,
         p_posizione                    IN     NUMBER,
         p_SEQU_ID_CLASSIFICA_ESTERNA   IN     NUMBER,
         p_mappa_premi                  IN     PKG_CALCOLI_PREMI_MANIFEST.T_MAPPATURA_PREMI,
@@ -443,7 +481,7 @@ AS
  
 
     PROCEDURE CALCOLA_PREMIO_MONTA_2025 (
-        p_dati_gara                    IN     tc_dati_gara_esterna%ROWTYPE,
+        p_dati_gara                    IN     t_dati_gara_rec,
         p_posizione                    IN     NUMBER,
         p_tot_partenti                 IN     NUMBER,
         p_num_con_parimerito           IN     NUMBER,
