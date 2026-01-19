@@ -534,15 +534,15 @@ FUNCTION get_endurance_classifica(
     -- ANNO 2025 - PARAMETRI COMPLETO
     ---------------------------------------------------------------------------
 
-    -- Parametri specifici per COMPLETO (montepremi variabili per categoria)
-    -- TODO: Estrarre valori dopo analisi handler_completo
+    -- INCENTIVO FISE COMPLETO (usa stessa % di salto ostacoli e dressage)
+    C_2025_CO_INCENTIVO_FISE_PERC  CONSTANT NUMBER := 0.1;   -- 10%
 
     ---------------------------------------------------------------------------
     -- ANNO 2025 - PARAMETRI MONTA DA LAVORO
     ---------------------------------------------------------------------------
 
     -- Parametri specifici per MONTA DA LAVORO (distribuzione semplice)
-    -- TODO: Estrarre valori dopo analisi handler_monta_da_lavoro
+    -- Nessuna costante specifica necessaria (usa calcola_premio_monta_2025)
 
 
 
