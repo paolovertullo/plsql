@@ -8345,8 +8345,330 @@ EXCEPTION
         RAISE;
 END handler_salto_ostacoli_v2;
 
+-- ============================================================================
+-- HANDLER DRESSAGE V2
+-- ============================================================================
+FUNCTION handler_dressage_v2 (
+    p_gara_id       IN NUMBER,
+    p_anno          IN NUMBER DEFAULT 2025,
+    p_modalita_test IN BOOLEAN DEFAULT FALSE
+) RETURN t_tabella_premi
+IS
+    l_risultati             t_tabella_premi := t_tabella_premi();
+    i                       PLS_INTEGER := 0;
+
+    v_dati_gara             tc_dati_gara_esterna%ROWTYPE;
+    v_premio                NUMBER;
+    v_num_partenti          NUMBER := 0;
+    v_num_partenti_valido   NUMBER := 0;
+    v_giornata              NUMBER;
+    v_nome_manifestazione   VARCHAR2(500);
+    v_formula               VARCHAR2(50);
+    v_eta_cavalli           NUMBER;
+    v_montepremi_tot        NUMBER := 0;
+    v_soglia_punteggio      NUMBER := 0;
+    v_disciplina_id         NUMBER;
+    v_versione_algoritmo    VARCHAR2(50) := 'V2.1-REF-' || p_anno;
+    v_desc_calcolo_premio   VARCHAR2(1500);
+
+    idx                     PLS_INTEGER := 0;
+    v_classifica            pkg_calcoli_premi_manifest.t_classifica;
+    v_mappa_premi           pkg_calcoli_premi_manifest.t_mappatura_premi;
+
+    -- Ottimizzazione: mappa parimerito precalcolata
+    TYPE t_mappa_parimerito IS TABLE OF PLS_INTEGER INDEX BY PLS_INTEGER;
+    v_parimerito            t_mappa_parimerito;
+
+    -- Variabili per distribuzione premi
+    v_percentuali           sys.odcinumberlist;
+    v_max_premiati          PLS_INTEGER;
+    v_pos_corrente          PLS_INTEGER;
+    v_num_parimerito        PLS_INTEGER;
+    v_premio_diviso         NUMBER;
+    v_idx_mappa             PLS_INTEGER;
+
+    CURSOR c_classifica IS
+        SELECT RANK() OVER (
+                   ORDER BY NVL(t.nume_punti, 0) DESC,
+                            t.nume_piazzamento ASC
+               ) AS posizione_masaf,
+               t.*
+          FROM tc_dati_classifica_esterna t
+         WHERE fk_sequ_id_dati_gara_esterna = p_gara_id
+           AND t.fk_sequ_id_cavallo IS NOT NULL
+           AND t.nume_piazzamento < 900
+      ORDER BY NVL(t.nume_punti, 0) DESC,
+               t.nume_piazzamento ASC;
+BEGIN
+    IF c_debug THEN
+        DBMS_OUTPUT.PUT_LINE(CHR(10) || RPAD('=', 80, '='));
+        DBMS_OUTPUT.PUT_LINE('   HANDLER DRESSAGE V2 (TEST MODE: ' || CASE WHEN p_modalita_test THEN 'ON' ELSE 'OFF' END || ')');
+        DBMS_OUTPUT.PUT_LINE('   Gara ID: ' || p_gara_id);
+        DBMS_OUTPUT.PUT_LINE(RPAD('=', 80, '='));
+    END IF;
+
+    -- 1. Info gara
+    v_dati_gara := fn_info_gara_esterna(p_gara_id);
+    v_disciplina_id := get_disciplina(p_gara_id);
+
+    -- 2. Numero partenti totali
+    SELECT COUNT(*)
+      INTO v_num_partenti
+      FROM tc_dati_classifica_esterna
+     WHERE fk_sequ_id_dati_gara_esterna = p_gara_id
+       AND fk_sequ_id_cavallo IS NOT NULL
+       AND nume_piazzamento < 900;
+
+    v_desc_calcolo_premio := 'Calcolo effettuato considerando:'||u'\000A'||' - '||v_num_partenti||' cavalli partenti'||u'\000A';
+
+    IF v_num_partenti = 0 THEN
+        RETURN l_risultati;
+    END IF;
+
+    -- 3. Calcolo giornata
+    SELECT 1 + TRUNC(TO_DATE(dg.data_gara_esterna, 'YYYYMMDD'))
+             - TRUNC(TO_DATE(ed.data_inizio_edizione, 'YYYYMMDD'))
+      INTO v_giornata
+      FROM tc_dati_gara_esterna dg
+      JOIN tc_dati_edizione_esterna ee ON ee.sequ_id_dati_edizione_esterna = dg.fk_sequ_id_dati_ediz_esterna
+      JOIN tc_edizione ed ON ed.sequ_id_edizione = ee.fk_sequ_id_edizione
+     WHERE dg.sequ_id_dati_gara_esterna = p_gara_id;
+
+    v_desc_calcolo_premio := v_desc_calcolo_premio||' - Giornata '||v_giornata||u'\000A';
+
+    -- 4. Nome manifestazione e formula
+    SELECT UPPER(mf.desc_denom_manifestazione), UPPER(mf.desc_formula)
+      INTO v_nome_manifestazione, v_formula
+      FROM tc_dati_gara_esterna dg
+      JOIN tc_dati_edizione_esterna ee ON ee.sequ_id_dati_edizione_esterna = dg.fk_sequ_id_dati_ediz_esterna
+      JOIN tc_edizione ed ON ed.sequ_id_edizione = ee.fk_sequ_id_edizione
+      JOIN tc_manifestazione mf ON mf.sequ_id_manifestazione = ed.fk_sequ_id_manifestazione
+     WHERE dg.sequ_id_dati_gara_esterna = p_gara_id;
+
+    -- Età cavalli
+    IF v_dati_gara.fk_codi_eta IS NOT NULL THEN
+        v_eta_cavalli := TO_NUMBER(SUBSTR(fn_desc_tipologica(v_dati_gara.fk_codi_eta), 1, 1));
+    ELSE
+        v_eta_cavalli := CASE
+            WHEN UPPER(v_dati_gara.desc_nome_gara_esterna) LIKE '%4%ANNI%' THEN 4
+            WHEN UPPER(v_dati_gara.desc_nome_gara_esterna) LIKE '%5%ANNI%' THEN 5
+            WHEN UPPER(v_dati_gara.desc_nome_gara_esterna) LIKE '%6%ANNI%' THEN 6
+            WHEN UPPER(v_dati_gara.desc_nome_gara_esterna) LIKE '%7%ANNI%' THEN 7
+            WHEN UPPER(v_dati_gara.desc_nome_gara_esterna) LIKE '%8%ANNI%' THEN 8
+            ELSE NULL
+        END;
+    END IF;
+
+    v_desc_calcolo_premio := v_desc_calcolo_premio||' - Età: '||v_eta_cavalli||' anni'||u'\000A';
+    v_desc_calcolo_premio := v_desc_calcolo_premio||' - Manifestazione: '||v_nome_manifestazione||u'\000A';
+
+    -- 5. Determina soglia e montepremi usando COSTANTI
+    IF v_nome_manifestazione = C_PAT_CIRCUITO_DRESSAGE THEN
+        IF v_giornata != 2 THEN
+            v_desc_calcolo_premio := v_desc_calcolo_premio||' - Circuito MASAF: premiata solo giornata 2'||u'\000A';
+            RETURN l_risultati;
+        END IF;
+
+        IF v_eta_cavalli IN (5, 6, 7, 8) THEN
+            IF UPPER(v_dati_gara.desc_nome_gara_esterna) LIKE C_PAT_PRELIMINARY THEN
+                v_desc_calcolo_premio := v_desc_calcolo_premio||' - Gara PRELIMINARY: non premiata'||u'\000A';
+                RETURN l_risultati;
+            END IF;
+        END IF;
+
+        v_soglia_punteggio := CASE p_anno WHEN 2025 THEN C_2025_DR_CIRC_SOGLIA ELSE C_2025_DR_CIRC_SOGLIA END;
+        v_montepremi_tot := CASE v_eta_cavalli
+            WHEN 4 THEN CASE p_anno WHEN 2025 THEN C_2025_DR_CIRC_4_ANNI ELSE C_2025_DR_CIRC_4_ANNI END
+            WHEN 5 THEN CASE p_anno WHEN 2025 THEN C_2025_DR_CIRC_5_ANNI ELSE C_2025_DR_CIRC_5_ANNI END
+            WHEN 6 THEN CASE p_anno WHEN 2025 THEN C_2025_DR_CIRC_6_ANNI ELSE C_2025_DR_CIRC_6_ANNI END
+            WHEN 7 THEN CASE p_anno WHEN 2025 THEN C_2025_DR_CIRC_7_ANNI ELSE C_2025_DR_CIRC_7_ANNI END
+            WHEN 8 THEN CASE p_anno WHEN 2025 THEN C_2025_DR_CIRC_8_ANNI ELSE C_2025_DR_CIRC_8_ANNI END
+            ELSE 0
+        END;
+        v_desc_calcolo_premio := v_desc_calcolo_premio||' - Tipo: Circuito MASAF'||u'\000A';
+
+    ELSIF v_nome_manifestazione LIKE C_PAT_FINALE_DRESSAGE THEN
+        v_soglia_punteggio := CASE p_anno WHEN 2025 THEN C_2025_DR_FIN_SOGLIA ELSE C_2025_DR_FIN_SOGLIA END;
+        v_montepremi_tot := CASE v_eta_cavalli
+            WHEN 4 THEN CASE p_anno WHEN 2025 THEN C_2025_DR_FIN_4_ANNI ELSE C_2025_DR_FIN_4_ANNI END
+            WHEN 5 THEN CASE p_anno WHEN 2025 THEN C_2025_DR_FIN_5_ANNI ELSE C_2025_DR_FIN_5_ANNI END
+            WHEN 6 THEN CASE p_anno WHEN 2025 THEN C_2025_DR_FIN_6_ANNI ELSE C_2025_DR_FIN_6_ANNI END
+            WHEN 7 THEN CASE p_anno WHEN 2025 THEN C_2025_DR_FIN_7_ANNI ELSE C_2025_DR_FIN_7_ANNI END
+            WHEN 8 THEN CASE p_anno WHEN 2025 THEN C_2025_DR_FIN_8_ANNI ELSE C_2025_DR_FIN_8_ANNI END
+            ELSE 0
+        END;
+        v_desc_calcolo_premio := v_desc_calcolo_premio||' - Tipo: Finale Dressage'||u'\000A';
+
+    ELSIF pkg_calcoli_premi_manifest.fn_incentivo_masaf_gara_fise(p_gara_id) = 0 THEN
+        v_desc_calcolo_premio := v_desc_calcolo_premio||' - Manifestazione non premiata'||u'\000A';
+        RETURN l_risultati;
+    ELSE
+        v_soglia_punteggio := 0;
+    END IF;
+
+    v_desc_calcolo_premio := v_desc_calcolo_premio||' - Soglia punteggio: '||v_soglia_punteggio||'%'||u'\000A';
+    v_desc_calcolo_premio := v_desc_calcolo_premio||' - Montepremi totale: '||v_montepremi_tot||' Euro'||u'\000A';
+
+    -- 6. OTTIMIZZAZIONE: Precalcolo parimerito (evita loop in loop)
+    FOR rec IN (SELECT posizione_rank, COUNT(*) AS conta
+                  FROM (SELECT RANK() OVER (ORDER BY NVL(t.nume_punti, 0) DESC, t.nume_piazzamento ASC) AS posizione_rank
+                          FROM tc_dati_classifica_esterna t
+                         WHERE fk_sequ_id_dati_gara_esterna = p_gara_id
+                           AND t.fk_sequ_id_cavallo IS NOT NULL
+                           AND t.nume_piazzamento < 900)
+              GROUP BY posizione_rank)
+    LOOP
+        v_parimerito(rec.posizione_rank) := rec.conta;
+    END LOOP;
+
+    -- 7. Costruzione classifica con soglia punteggio
+    FOR rec IN c_classifica LOOP
+        IF NVL(rec.nume_punti, 0) >= v_soglia_punteggio THEN
+            idx := idx + 1;
+            v_classifica(idx).id_cavallo := rec.fk_sequ_id_cavallo;
+            v_classifica(idx).posizione := rec.posizione_masaf;
+            v_classifica(idx).punteggio := rec.nume_punti;
+            v_classifica(idx).vincite_fise := rec.vincite_fise;
+            v_num_partenti_valido := v_num_partenti_valido + 1;
+        END IF;
+    END LOOP;
+
+    v_desc_calcolo_premio := v_desc_calcolo_premio||' - Cavalli con punteggio >= '||v_soglia_punteggio||'%: '||v_num_partenti_valido||u'\000A';
+
+    IF v_num_partenti_valido = 0 THEN
+        RETURN l_risultati;
+    END IF;
+
+    -- 8. Costruzione mappa premi
+    v_idx_mappa := 0;
+
+    IF v_formula = C_FORMULA_FISE THEN
+        -- INCENTIVO 10% FISE
+        FOR i IN 1 .. v_classifica.COUNT LOOP
+            v_idx_mappa := v_idx_mappa + 1;
+            v_mappa_premi(v_idx_mappa).id_cavallo := v_classifica(i).id_cavallo;
+            v_mappa_premi(v_idx_mappa).premio := ROUND(v_classifica(i).vincite_fise *
+                CASE p_anno WHEN 2025 THEN C_2025_DR_INCENTIVO_FISE_PERC ELSE C_2025_DR_INCENTIVO_FISE_PERC END, 2);
+            v_mappa_premi(v_idx_mappa).fascia := v_classifica(i).posizione;
+        END LOOP;
+        v_desc_calcolo_premio := v_desc_calcolo_premio||' - Incentivo FISE 10%'||u'\000A';
+
+    ELSE
+        -- Determina percentuali in base all'età (USA COSTANTI)
+        IF v_eta_cavalli IN (7, 8) THEN
+            v_percentuali := sys.odcinumberlist(
+                CASE p_anno WHEN 2025 THEN C_2025_DR_PERC_78_P1 ELSE C_2025_DR_PERC_78_P1 END,
+                CASE p_anno WHEN 2025 THEN C_2025_DR_PERC_78_P2 ELSE C_2025_DR_PERC_78_P2 END,
+                CASE p_anno WHEN 2025 THEN C_2025_DR_PERC_78_P3 ELSE C_2025_DR_PERC_78_P3 END
+            );
+            v_max_premiati := 3;
+            v_desc_calcolo_premio := v_desc_calcolo_premio||' - Distribuzione: Top 3 (50%, 30%, 20%)'||u'\000A';
+        ELSE
+            v_percentuali := sys.odcinumberlist(
+                CASE p_anno WHEN 2025 THEN C_2025_DR_PERC_ALTRI_P1 ELSE C_2025_DR_PERC_ALTRI_P1 END,
+                CASE p_anno WHEN 2025 THEN C_2025_DR_PERC_ALTRI_P2 ELSE C_2025_DR_PERC_ALTRI_P2 END,
+                CASE p_anno WHEN 2025 THEN C_2025_DR_PERC_ALTRI_P3 ELSE C_2025_DR_PERC_ALTRI_P3 END,
+                CASE p_anno WHEN 2025 THEN C_2025_DR_PERC_ALTRI_P4 ELSE C_2025_DR_PERC_ALTRI_P4 END,
+                CASE p_anno WHEN 2025 THEN C_2025_DR_PERC_ALTRI_P5 ELSE C_2025_DR_PERC_ALTRI_P5 END
+            );
+            v_max_premiati := 5;
+            v_desc_calcolo_premio := v_desc_calcolo_premio||' - Distribuzione: Top 5 (35%, 22%, 17%, 14%, 12%)'||u'\000A';
+        END IF;
+
+        -- Costruzione mappa con parimerito OTTIMIZZATO (usa mappa precalcolata)
+        v_pos_corrente := 1;
+        WHILE v_pos_corrente <= v_max_premiati LOOP
+            v_num_parimerito := NVL(v_parimerito(v_pos_corrente), 0);
+            EXIT WHEN v_num_parimerito = 0;
+
+            -- Calcola premio diviso
+            IF v_pos_corrente <= v_percentuali.COUNT THEN
+                v_premio_diviso := ROUND(v_montepremi_tot * v_percentuali(v_pos_corrente) / v_num_parimerito, 2);
+            ELSE
+                v_premio_diviso := 0;
+            END IF;
+
+            -- Assegna a tutti i cavalli in questa posizione
+            FOR j IN 1 .. v_classifica.COUNT LOOP
+                IF v_classifica(j).posizione = v_pos_corrente THEN
+                    v_idx_mappa := v_idx_mappa + 1;
+                    v_mappa_premi(v_idx_mappa).id_cavallo := v_classifica(j).id_cavallo;
+                    v_mappa_premi(v_idx_mappa).fascia := v_pos_corrente;
+                    v_mappa_premi(v_idx_mappa).premio := v_premio_diviso;
+                END IF;
+            END LOOP;
+
+            v_pos_corrente := v_pos_corrente + v_num_parimerito;
+        END LOOP;
+    END IF;
+
+    -- 9. Ciclo finale: Assegnazione e Output
+    i := 0;
+    FOR rec IN c_classifica LOOP
+        IF NVL(rec.nume_punti, 0) < v_soglia_punteggio THEN
+            CONTINUE;
+        END IF;
+
+        calcola_premio_dressage_2025(
+            p_dati_gara                  => v_dati_gara,
+            p_posizione                  => rec.posizione_masaf,
+            p_sequ_id_classifica_esterna => rec.sequ_id_classifica_esterna,
+            p_mappa_premi                => v_mappa_premi,
+            p_premio_cavallo             => v_premio);
+
+        i := i + 1;
+        l_risultati.EXTEND;
+        l_risultati(i).cavallo_id := rec.fk_sequ_id_cavallo;
+        l_risultati(i).nome_cavallo := rec.desc_cavallo;
+        l_risultati(i).premio := v_premio;
+        l_risultati(i).posizione := rec.nume_piazzamento;
+
+        -- SNAPSHOT TEST
+        IF p_modalita_test THEN
+            MERGE_TEST_SNAPSHOT(
+                p_gara_id            => p_gara_id,
+                p_disciplina_id      => v_disciplina_id,
+                p_cavallo_id         => rec.fk_sequ_id_cavallo,
+                p_nome_cavallo       => rec.desc_cavallo,
+                p_posizione          => rec.posizione_masaf,
+                p_premio_calcolato   => v_premio,
+                p_note_calcolo       => v_desc_calcolo_premio,
+                p_versione_algoritmo => v_versione_algoritmo);
+        END IF;
+    END LOOP;
+
+    -- UPDATE DESCRIZIONE CALCOLO PREMI IN MODALITÀ TEST
+    IF p_modalita_test THEN
+        UPDATE tc_dati_gara_esterna
+           SET desc_calcolo_premi = v_desc_calcolo_premio
+         WHERE sequ_id_dati_gara_esterna = p_gara_id;
+    END IF;
+
+    -- SALVATAGGIO PRODUZIONE
+    IF NOT p_modalita_test THEN
+       -- update tc_dati_gara_esterna ...
+       COMMIT;
+    END IF;
+
+    IF c_debug THEN
+        DBMS_OUTPUT.PUT_LINE(CHR(10) || RPAD('=', 80, '='));
+        DBMS_OUTPUT.PUT_LINE('   FINE HANDLER DRESSAGE V2 - Gara ID: ' || p_gara_id);
+        IF p_modalita_test THEN
+            DBMS_OUTPUT.PUT_LINE('   ** ESEGUITO IN MODALITÀ TEST - NESSUN CAMBIO AI DATI DI GARA **');
+        END IF;
+        DBMS_OUTPUT.PUT_LINE(RPAD('=', 80, '=') || CHR(10));
+    END IF;
+
+    RETURN l_risultati;
+
+EXCEPTION
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('ERRORE HANDLER_DRESSAGE_V2: ' || SQLERRM);
+        RAISE;
+END handler_dressage_v2;
 
 
-    
+
+
 end pkg_calcoli_premi_manifest;
 /
