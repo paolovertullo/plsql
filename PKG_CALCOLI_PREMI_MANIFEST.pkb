@@ -8667,7 +8667,307 @@ EXCEPTION
         RAISE;
 END handler_dressage_v2;
 
+-- ============================================================================
+-- HANDLER ENDURANCE V2
+-- ============================================================================
+FUNCTION handler_endurance_v2 (
+    p_gara_id       IN NUMBER,
+    p_anno          IN NUMBER DEFAULT 2025,
+    p_modalita_test IN BOOLEAN DEFAULT FALSE
+) RETURN t_tabella_premi
+IS
+    l_risultati             t_tabella_premi := t_tabella_premi();
+    i                       PLS_INTEGER := 0;
 
+    v_dati_gara             tc_dati_gara_esterna%ROWTYPE;
+    v_premio                NUMBER;
+    v_montepremi            NUMBER := 0;
+    v_tipo_evento           VARCHAR2(50);
+    v_disciplina_id         NUMBER;
+    v_versione_algoritmo    VARCHAR2(50) := 'V2.1-REF-' || p_anno;
+    v_desc_calcolo_premio   VARCHAR2(1500);
+    v_num_partenti          NUMBER := 0;
+
+    -- Ottimizzazione: mappa parimerito precalcolata
+    TYPE t_mappa_parimerito IS TABLE OF PLS_INTEGER INDEX BY PLS_INTEGER;
+    v_parimerito            t_mappa_parimerito;
+
+    CURSOR c_classifica IS
+        SELECT RANK() OVER (
+                   ORDER BY CASE WHEN t.nume_punti IS NOT NULL THEN 1 ELSE 2 END,
+                            t.nume_punti DESC,
+                            t.nume_piazzamento ASC
+               ) AS posizione_masaf,
+               t.*
+          FROM tc_dati_classifica_esterna t
+         WHERE fk_sequ_id_dati_gara_esterna = p_gara_id
+           AND t.fk_sequ_id_cavallo IS NOT NULL
+           AND t.nume_piazzamento < 900
+      ORDER BY CASE WHEN t.nume_punti IS NOT NULL THEN 1 ELSE 2 END,
+               t.nume_punti DESC,
+               t.nume_piazzamento ASC;
+BEGIN
+    IF c_debug THEN
+        DBMS_OUTPUT.PUT_LINE(CHR(10) || RPAD('=', 80, '='));
+        DBMS_OUTPUT.PUT_LINE('   HANDLER ENDURANCE V2 (TEST MODE: ' || CASE WHEN p_modalita_test THEN 'ON' ELSE 'OFF' END || ')');
+        DBMS_OUTPUT.PUT_LINE('   Gara ID: ' || p_gara_id);
+        DBMS_OUTPUT.PUT_LINE(RPAD('=', 80, '='));
+    END IF;
+
+    -- 1. Info gara
+    v_dati_gara := fn_info_gara_esterna(p_gara_id);
+    v_disciplina_id := get_disciplina(p_gara_id);
+    v_tipo_evento := UPPER(fn_desc_tipologica(v_dati_gara.fk_codi_tipo_evento));
+
+    -- 2. Conta partenti
+    SELECT COUNT(*)
+      INTO v_num_partenti
+      FROM tc_dati_classifica_esterna
+     WHERE fk_sequ_id_dati_gara_esterna = p_gara_id
+       AND fk_sequ_id_cavallo IS NOT NULL
+       AND nume_piazzamento < 900;
+
+    v_desc_calcolo_premio := 'Calcolo effettuato considerando:'||u'\000A'||' - '||v_num_partenti||' cavalli partenti'||u'\000A';
+    v_desc_calcolo_premio := v_desc_calcolo_premio||' - Tipo evento: '||v_tipo_evento||u'\000A';
+
+    IF v_num_partenti = 0 THEN
+        RETURN l_risultati;
+    END IF;
+
+    -- 3. Determina montepremi (SOLO FINALE è premiata) usando COSTANTI
+    IF v_tipo_evento = 'FINALE' THEN
+        v_montepremi := CASE UPPER(v_dati_gara.desc_nome_gara_esterna)
+            WHEN 'CEI1*' THEN CASE p_anno WHEN 2025 THEN C_2025_EN_FIN_CEI1STAR ELSE C_2025_EN_FIN_CEI1STAR END
+            WHEN 'CEN A' THEN CASE p_anno WHEN 2025 THEN C_2025_EN_FIN_CEN_A ELSE C_2025_EN_FIN_CEN_A END
+            WHEN 'DEBUTTANTI' THEN CASE p_anno WHEN 2025 THEN C_2025_EN_FIN_DEBUTTANTI ELSE C_2025_EN_FIN_DEBUTTANTI END
+            WHEN 'CEI2*' THEN CASE p_anno WHEN 2025 THEN C_2025_EN_FIN_CEI2STAR ELSE C_2025_EN_FIN_CEI2STAR END
+            ELSE 0
+        END;
+        v_desc_calcolo_premio := v_desc_calcolo_premio||' - Categoria: '||UPPER(v_dati_gara.desc_nome_gara_esterna)||u'\000A';
+        v_desc_calcolo_premio := v_desc_calcolo_premio||' - Montepremi: '||v_montepremi||' Euro'||u'\000A';
+    ELSE
+        v_desc_calcolo_premio := v_desc_calcolo_premio||' - Solo FINALE è premiata'||u'\000A';
+        RETURN l_risultati;
+    END IF;
+
+    IF v_montepremi = 0 THEN
+        v_desc_calcolo_premio := v_desc_calcolo_premio||' - Categoria non premiata'||u'\000A';
+        RETURN l_risultati;
+    END IF;
+
+    -- 4. OTTIMIZZAZIONE: Precalcolo parimerito
+    FOR rec IN (SELECT posizione_masaf, COUNT(*) AS conta
+                  FROM (SELECT RANK() OVER (
+                                   ORDER BY CASE WHEN t.nume_punti IS NOT NULL THEN 1 ELSE 2 END,
+                                            t.nume_punti DESC,
+                                            t.nume_piazzamento ASC
+                               ) AS posizione_masaf
+                          FROM tc_dati_classifica_esterna t
+                         WHERE fk_sequ_id_dati_gara_esterna = p_gara_id
+                           AND t.fk_sequ_id_cavallo IS NOT NULL
+                           AND t.nume_piazzamento < 900)
+              GROUP BY posizione_masaf)
+    LOOP
+        v_parimerito(rec.posizione_masaf) := rec.conta;
+    END LOOP;
+
+    v_desc_calcolo_premio := v_desc_calcolo_premio||' - Distribuzione: ENDURANCE (con gestione parimerito)'||u'\000A';
+
+    -- 5. Ciclo finale: Assegnazione e Output
+    i := 0;
+    FOR rec IN c_classifica LOOP
+        calcola_premio_endurance_2025(
+            p_dati_gara                  => v_dati_gara,
+            p_posizione                  => rec.posizione_masaf,
+            p_montepremi_tot             => v_montepremi,
+            p_num_con_parimerito         => NVL(v_parimerito(rec.posizione_masaf), 1),
+            p_sequ_id_classifica_esterna => rec.sequ_id_classifica_esterna,
+            p_premio_cavallo             => v_premio);
+
+        i := i + 1;
+        l_risultati.EXTEND;
+        l_risultati(i).cavallo_id := rec.fk_sequ_id_cavallo;
+        l_risultati(i).nome_cavallo := rec.desc_cavallo;
+        l_risultati(i).premio := v_premio;
+        l_risultati(i).posizione := rec.nume_piazzamento;
+
+        -- SNAPSHOT TEST
+        IF p_modalita_test THEN
+            MERGE_TEST_SNAPSHOT(
+                p_gara_id            => p_gara_id,
+                p_disciplina_id      => v_disciplina_id,
+                p_cavallo_id         => rec.fk_sequ_id_cavallo,
+                p_nome_cavallo       => rec.desc_cavallo,
+                p_posizione          => rec.posizione_masaf,
+                p_premio_calcolato   => v_premio,
+                p_note_calcolo       => v_desc_calcolo_premio,
+                p_versione_algoritmo => v_versione_algoritmo);
+        END IF;
+    END LOOP;
+
+    -- UPDATE DESCRIZIONE CALCOLO PREMI IN MODALITÀ TEST
+    IF p_modalita_test THEN
+        UPDATE tc_dati_gara_esterna
+           SET desc_calcolo_premi = v_desc_calcolo_premio
+         WHERE sequ_id_dati_gara_esterna = p_gara_id;
+    END IF;
+
+    -- SALVATAGGIO PRODUZIONE
+    IF NOT p_modalita_test THEN
+       -- update tc_dati_gara_esterna ...
+       COMMIT;
+    END IF;
+
+    IF c_debug THEN
+        DBMS_OUTPUT.PUT_LINE(CHR(10) || RPAD('=', 80, '='));
+        DBMS_OUTPUT.PUT_LINE('   FINE HANDLER ENDURANCE V2 - Gara ID: ' || p_gara_id);
+        IF p_modalita_test THEN
+            DBMS_OUTPUT.PUT_LINE('   ** ESEGUITO IN MODALITÀ TEST - NESSUN CAMBIO AI DATI DI GARA **');
+        END IF;
+        DBMS_OUTPUT.PUT_LINE(RPAD('=', 80, '=') || CHR(10));
+    END IF;
+
+    RETURN l_risultati;
+
+EXCEPTION
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('ERRORE HANDLER_ENDURANCE_V2: ' || SQLERRM);
+        RAISE;
+END handler_endurance_v2;
+
+-- ============================================================================
+-- HANDLER MONTA DA LAVORO V2
+-- ============================================================================
+FUNCTION handler_monta_da_lavoro_v2 (
+    p_gara_id       IN NUMBER,
+    p_anno          IN NUMBER DEFAULT 2025,
+    p_modalita_test IN BOOLEAN DEFAULT FALSE
+) RETURN t_tabella_premi
+IS
+    l_risultati             t_tabella_premi := t_tabella_premi();
+    i                       PLS_INTEGER := 0;
+
+    v_dati_gara             tc_dati_gara_esterna%ROWTYPE;
+    v_premio                NUMBER;
+    v_count                 NUMBER := 0;
+    v_posizione_reale       PLS_INTEGER := 1;
+    v_piazzamento_prec      NUMBER := NULL;
+    v_disciplina_id         NUMBER;
+    v_versione_algoritmo    VARCHAR2(50) := 'V2.1-REF-' || p_anno;
+    v_desc_calcolo_premio   VARCHAR2(1500);
+
+    -- Ottimizzazione: mappa parimerito precalcolata
+    TYPE t_mappa_parimerito IS TABLE OF PLS_INTEGER INDEX BY PLS_INTEGER;
+    v_parimerito            t_mappa_parimerito;
+
+    CURSOR c_classifica IS
+        SELECT *
+          FROM tc_dati_classifica_esterna
+         WHERE fk_sequ_id_dati_gara_esterna = p_gara_id
+      ORDER BY nume_piazzamento ASC;
+BEGIN
+    IF c_debug THEN
+        DBMS_OUTPUT.PUT_LINE(CHR(10) || RPAD('=', 80, '='));
+        DBMS_OUTPUT.PUT_LINE('   HANDLER MONTA DA LAVORO V2 (TEST MODE: ' || CASE WHEN p_modalita_test THEN 'ON' ELSE 'OFF' END || ')');
+        DBMS_OUTPUT.PUT_LINE('   Gara ID: ' || p_gara_id);
+        DBMS_OUTPUT.PUT_LINE(RPAD('=', 80, '='));
+    END IF;
+
+    -- 1. Info gara
+    v_dati_gara := fn_info_gara_esterna(p_gara_id);
+    v_disciplina_id := get_disciplina(p_gara_id);
+
+    -- 2. Conta partenti
+    SELECT COUNT(*)
+      INTO v_count
+      FROM tc_dati_classifica_esterna
+     WHERE fk_sequ_id_dati_gara_esterna = p_gara_id;
+
+    v_desc_calcolo_premio := 'Calcolo effettuato considerando:'||u'\000A'||' - '||v_count||' cavalli partenti'||u'\000A';
+
+    IF v_count = 0 THEN
+        RETURN l_risultati;
+    END IF;
+
+    -- 3. OTTIMIZZAZIONE: Precalcolo parimerito
+    FOR rec IN (SELECT nume_piazzamento, COUNT(*) AS conta
+                  FROM tc_dati_classifica_esterna
+                 WHERE fk_sequ_id_dati_gara_esterna = p_gara_id
+                   AND fk_sequ_id_cavallo IS NOT NULL
+              GROUP BY nume_piazzamento)
+    LOOP
+        v_parimerito(rec.nume_piazzamento) := rec.conta;
+    END LOOP;
+
+    v_desc_calcolo_premio := v_desc_calcolo_premio||' - Distribuzione: MONTA DA LAVORO (con gestione parimerito)'||u'\000A';
+
+    -- 4. Ciclo finale: Assegnazione con calcolo posizione reale
+    FOR rec IN c_classifica LOOP
+        -- Calcola posizione reale considerando i parimerito precedenti
+        IF v_piazzamento_prec IS NOT NULL AND rec.nume_piazzamento > v_piazzamento_prec THEN
+            v_posizione_reale := v_posizione_reale + v_parimerito(v_piazzamento_prec);
+        END IF;
+
+        calcola_premio_monta_2025(
+            p_dati_gara                  => v_dati_gara,
+            p_posizione                  => v_posizione_reale,
+            p_tot_partenti               => v_count,
+            p_num_con_parimerito         => NVL(v_parimerito(rec.nume_piazzamento), 1),
+            p_sequ_id_classifica_esterna => rec.sequ_id_classifica_esterna,
+            p_premio_cavallo             => v_premio);
+
+        i := i + 1;
+        l_risultati.EXTEND;
+        l_risultati(i).cavallo_id := rec.fk_sequ_id_cavallo;
+        l_risultati(i).nome_cavallo := rec.desc_cavallo;
+        l_risultati(i).premio := v_premio;
+        l_risultati(i).posizione := rec.nume_piazzamento;
+
+        -- SNAPSHOT TEST
+        IF p_modalita_test THEN
+            MERGE_TEST_SNAPSHOT(
+                p_gara_id            => p_gara_id,
+                p_disciplina_id      => v_disciplina_id,
+                p_cavallo_id         => rec.fk_sequ_id_cavallo,
+                p_nome_cavallo       => rec.desc_cavallo,
+                p_posizione          => v_posizione_reale,
+                p_premio_calcolato   => v_premio,
+                p_note_calcolo       => v_desc_calcolo_premio,
+                p_versione_algoritmo => v_versione_algoritmo);
+        END IF;
+
+        v_piazzamento_prec := rec.nume_piazzamento;
+    END LOOP;
+
+    -- UPDATE DESCRIZIONE CALCOLO PREMI IN MODALITÀ TEST
+    IF p_modalita_test THEN
+        UPDATE tc_dati_gara_esterna
+           SET desc_calcolo_premi = v_desc_calcolo_premio
+         WHERE sequ_id_dati_gara_esterna = p_gara_id;
+    END IF;
+
+    -- SALVATAGGIO PRODUZIONE
+    IF NOT p_modalita_test THEN
+       -- update tc_dati_gara_esterna ...
+       COMMIT;
+    END IF;
+
+    IF c_debug THEN
+        DBMS_OUTPUT.PUT_LINE(CHR(10) || RPAD('=', 80, '='));
+        DBMS_OUTPUT.PUT_LINE('   FINE HANDLER MONTA DA LAVORO V2 - Gara ID: ' || p_gara_id);
+        IF p_modalita_test THEN
+            DBMS_OUTPUT.PUT_LINE('   ** ESEGUITO IN MODALITÀ TEST - NESSUN CAMBIO AI DATI DI GARA **');
+        END IF;
+        DBMS_OUTPUT.PUT_LINE(RPAD('=', 80, '=') || CHR(10));
+    END IF;
+
+    RETURN l_risultati;
+
+EXCEPTION
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('ERRORE HANDLER_MONTA_DA_LAVORO_V2: ' || SQLERRM);
+        RAISE;
+END handler_monta_da_lavoro_v2;
 
 
 end pkg_calcoli_premi_manifest;
