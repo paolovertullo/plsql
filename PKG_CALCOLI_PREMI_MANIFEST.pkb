@@ -8,7 +8,7 @@ as
     -- TODO: Tutte le simulazioni sono vuote attualmente perchè le firma dei calcola sono tutte cambiate.
     -- TODO: La funzione che dice se ci sono incentivi va rivista profondamente.
 
-    c_debug        constant boolean := true;
+    c_debug        constant boolean := false;
     c_debug_info   constant boolean := false; 
 
     -- metti TRUE se vuoi il debug attivo
@@ -540,6 +540,7 @@ as
                    or upper (v_nome_gara) like '%WAR%UP%'
                    or upper (v_nome_gara) like '%AMBIENTAMENTO%'
                    or upper (v_nome_gara) like '%ADDESTRA%'
+                   or upper (v_nome_gara) like '%ADD.VA%'
                 then
                     l_premiata := 0;
                     return l_premiata;
@@ -7486,5 +7487,859 @@ EXCEPTION
         RAISE;
 END VALIDA_EDIZ_CON_INCENTIVI_10;
 
+
+
+
+
+    ---------------------------------------------------------------------------
+    -- MERGE_TEST_SNAPSHOT
+    -- Procedure per inserire/aggiornare risultati in tc_test_snapshot
+    -- Utilizzata per test di non regressione prima di sostituire package in produzione
+    ---------------------------------------------------------------------------
+    PROCEDURE MERGE_TEST_SNAPSHOT(
+    p_gara_id            IN NUMBER,
+    p_disciplina_id      IN NUMBER, -- Non usato ma mantenuto per firma
+    p_cavallo_id         IN NUMBER,
+    p_nome_cavallo       IN VARCHAR2,
+    p_posizione          IN NUMBER,
+    p_premio_calcolato   IN NUMBER,
+    p_note_calcolo       IN VARCHAR2, -- Non usato ma mantenuto per firma
+    p_versione_algoritmo IN VARCHAR2  -- Non usato ma mantenuto per firma
+)
+IS
+    v_premio_prod NUMBER;
+    v_diff        NUMBER;
+BEGIN
+    -- Recupera il premio attualmente salvato in produzione per questo cavallo
+    BEGIN
+        SELECT IMPORTO_MASAF_CALCOLATO  -- <--- VERIFICA QUESTO NOME CAMPO SUL TUO DB! (es. NUME_PREMIO, PREMIO_VINTO, etc.)
+          INTO v_premio_prod
+          FROM tc_dati_classifica_esterna
+         WHERE fk_sequ_id_dati_gara_esterna = p_gara_id
+           AND fk_sequ_id_cavallo = p_cavallo_id;
+           
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            v_premio_prod := NULL;
+        WHEN OTHERS THEN
+            v_premio_prod := -999; -- Valore sentinella errore
+    END;
+
+    -- Calcolo differenza (gestendo i null come 0)
+    v_diff := NVL(p_premio_calcolato, 0) - NVL(v_premio_prod, 0);
+
+    -- OUTPUT DI CONFRONTO
+    IF v_diff = 0 THEN
+        -- MATCH PERFETTO
+        DBMS_OUTPUT.PUT_LINE(
+            '[UGUALE] ' || 
+            RPAD(SUBSTR(p_nome_cavallo, 1, 25), 26, ' ') || 
+            ' | Pos: ' || LPAD(p_posizione, 3, ' ') ||
+            ' | Nuovo: ' || LPAD(p_premio_calcolato, 8, ' ') || 
+            ' | Prod: '  || LPAD(v_premio_prod, 8, ' ')
+        );
+    ELSE
+        -- DISCREPANZA
+        DBMS_OUTPUT.PUT_LINE(
+            '[DIVERSO] ' || 
+            RPAD(SUBSTR(p_nome_cavallo, 1, 25), 26, ' ') || 
+            ' | Pos: ' || LPAD(p_posizione, 3, ' ') ||
+            ' | Nuovo: ' || LPAD(p_premio_calcolato, 8, ' ') || 
+            ' | Prod: '  || LPAD(v_premio_prod, 8, ' ') || 
+            ' | Diff: '  || v_diff
+        );
+    END IF;
+
+EXCEPTION
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('ERRORE CONFRONTO PROD: ' || SQLERRM);
+END MERGE_TEST_SNAPSHOT;
+
+
+PROCEDURE fn_calcola_montepremi_salto_v2 (
+        p_dati_gara   in tc_dati_gara_esterna%rowtype,
+        p_periodo     in number,
+        p_num_part    in number,
+        p_giornata    in number,
+        p_anno        in number default 2025,
+        p_desc_calcolo_premio OUT varchar2,
+        p_montepremi OUT number)
+    is
+        v_categoria       varchar2 (50) := 'SPORT';
+        v_eta             number;
+        --v_montepremi      number := 0;
+        v_perc_giudizio   number := 1;
+        v_perc_precis     number := 0;
+        v_tipo_gara       varchar2 (20);
+         v_nome_manifestazione     varchar2 (255);
+         v_is_criterium boolean;
+         v_is_finale    boolean;
+        --v_desc_calcolo_premio       varchar2 (2000);
+    begin
+        v_categoria :=
+            upper (fn_desc_tipologica (p_dati_gara.fk_codi_categoria));
+        v_eta :=
+            to_number (
+                substr (fn_desc_tipologica (p_dati_gara.fk_codi_eta), 1, 1));
+
+-- Recupero riga la formula dell'edizione
+        select  upper(mf.DESC_DENOM_MANIFESTAZIONE)
+          into v_nome_manifestazione
+          from tc_dati_gara_esterna  dg
+               join tc_dati_edizione_esterna ee
+                   on ee.sequ_id_dati_edizione_esterna =
+                      dg.fk_sequ_id_dati_ediz_esterna
+               join tc_edizione ed
+                   on ed.sequ_id_edizione = ee.fk_sequ_id_edizione
+               join tc_manifestazione mf
+                   on mf.sequ_id_manifestazione =
+                      ed.fk_sequ_id_manifestazione
+         where dg.sequ_id_dati_gara_esterna = p_dati_gara.SEQU_ID_DATI_GARA_ESTERNA;   
+         
+        if instr (upper (p_dati_gara.desc_nome_gara_esterna), 'SPORT') > 0
+        then
+            v_categoria := 'SPORT';
+        elsif instr (upper (p_dati_gara.desc_nome_gara_esterna), 'ELITE') > 0
+        then
+            v_categoria := 'ELITE';
+        elsif instr (upper (p_dati_gara.desc_nome_gara_esterna), 'SELEZIONE') >
+              0
+        then
+            v_categoria := 'SELEZIONE';
+        elsif instr (upper (p_dati_gara.desc_nome_gara_esterna), 'ALTO') > 0
+        then
+            v_categoria := 'ALTO';
+        elsif instr (upper (p_dati_gara.desc_nome_gara_esterna), ' BR') > 0
+        then
+            v_categoria := 'BREVETTO';
+        end if;
+        
+        
+        --p_desc_calcolo_premio := 'categoria '||v_categoria;
+        
+        if instr (upper (p_dati_gara.desc_nome_gara_esterna), 'PRECISIONE') >
+           0
+        then
+            v_tipo_gara := 'PRECISIONE';
+        elsif instr (upper (p_dati_gara.desc_nome_gara_esterna), 'GIUDIZIO') >
+              0
+        then
+            v_tipo_gara := 'GIUDIZIO';
+        elsif instr (upper (p_dati_gara.desc_nome_gara_esterna), ' BR') >
+              0
+        then
+            v_tipo_gara := 'BREVETTO';
+        end if;
+
+        if c_debug
+        then
+            dbms_output.put_line (CHR(10) || '>> DATI GARA');
+            dbms_output.put_line (RPAD('-', 80, '-'));
+            dbms_output.put_line ('   Nome gara     : ' || p_dati_gara.desc_nome_gara_esterna);
+            dbms_output.put_line ('   Categoria     : ' || v_categoria);
+            dbms_output.put_line ('   Et¿ cavallo   : ' || v_eta);
+            dbms_output.put_line ('   Tipo gara     : ' || NVL(v_tipo_gara, 'N/A'));
+            dbms_output.put_line ('   Partenti      : ' || p_num_part);
+            dbms_output.put_line (RPAD('-', 80, '-'));
+        end if;
+        
+        -- CSIO ROMA - MASTER TALENT PIAZZA DI SIENA
+        if instr(upper(p_dati_gara.desc_nome_gara_esterna), 'MASTER') > 0
+           and instr(upper(p_dati_gara.desc_nome_gara_esterna), 'GIOVANI') > 0
+        then
+            if v_eta = 7 then
+                if instr(upper(p_dati_gara.desc_nome_gara_esterna), 'FINALE') > 0 then
+                    p_montepremi := CASE p_anno WHEN 2025 THEN C_2025_SO_CSIO_7_FINALE ELSE C_2026_SO_CSIO_7_FINALE END;
+                else -- 1¿ e 2¿ prova
+                    p_montepremi := CASE p_anno WHEN 2025 THEN C_2025_SO_CSIO_7_PROVA ELSE C_2026_SO_CSIO_7_PROVA END;
+                end if;
+                p_desc_calcolo_premio := p_desc_calcolo_premio ||' montepremi fisso ';
+                return;
+            elsif v_eta = 6 then
+                if instr(upper(p_dati_gara.desc_nome_gara_esterna), 'FINALE') > 0 then
+                    p_montepremi := CASE p_anno WHEN 2025 THEN C_2025_SO_CSIO_6_FINALE ELSE C_2026_SO_CSIO_6_FINALE END;
+                else -- 1¿ e 2¿ prova
+                    p_montepremi := CASE p_anno WHEN 2025 THEN C_2025_SO_CSIO_6_PROVA ELSE C_2026_SO_CSIO_6_PROVA END;
+                end if;
+                p_desc_calcolo_premio := p_desc_calcolo_premio ||' montepremi fisso ';
+                return;
+            end if;
+        end if;
+        
+        -- Calcolo base
+        -- Percentuali
+        if v_categoria = 'SPORT'
+        then
+            v_perc_giudizio := CASE p_anno WHEN 2025 THEN C_2025_SO_PERC_SPORT_GIU ELSE C_2025_SO_PERC_SPORT_GIU END;
+            v_perc_precis := CASE p_anno WHEN 2025 THEN C_2025_SO_PERC_SPORT_PREC ELSE C_2025_SO_PERC_SPORT_PREC END;
+        elsif v_categoria = 'ELITE' and v_eta = 4
+        then
+            v_perc_giudizio := CASE p_anno WHEN 2025 THEN C_2025_SO_PERC_ELITE4_GIU ELSE C_2025_SO_PERC_ELITE4_GIU END;
+            v_perc_precis := CASE p_anno WHEN 2025 THEN C_2025_SO_PERC_ELITE4_PREC ELSE C_2025_SO_PERC_ELITE4_PREC END;
+        elsif v_categoria in ('ELITE', 'ALTO') and v_eta = 5
+        then
+            v_perc_giudizio := CASE p_anno WHEN 2025 THEN C_2025_SO_PERC_ELITE5_GIU ELSE C_2025_SO_PERC_ELITE5_GIU END;
+            v_perc_precis := CASE p_anno WHEN 2025 THEN C_2025_SO_PERC_ELITE5_PREC ELSE C_2025_SO_PERC_ELITE5_PREC END;
+        else
+            v_perc_giudizio := 1;
+            v_perc_precis := 0;
+        end if;
+        
+        p_desc_calcolo_premio := p_desc_calcolo_premio||' perc. a giudizio '||v_perc_giudizio*100||'%, perc. a precisione '||v_perc_precis*100||'%,';
+                
+
+        -- Finali Circuito Classico MASAF - Campionati e Criterium - si ricalcolano le percentuali di split
+        if v_nome_manifestazione like 'FINALE%CIRCUITO%CLASSICO%'
+        then
+            -- Determino tipo gara (CRITERIUM o CAMPIONATO) e se ¿ FINALE
+            v_is_criterium := instr(upper(p_dati_gara.desc_nome_gara_esterna), 'CRITERIUM') > 0;
+            v_is_finale    := instr(upper(p_dati_gara.desc_nome_gara_esterna), 'FINALE') > 0;
+    
+    
+            if v_eta = 4 --CAMPIONATO 4 anni stessi premi se maschio o femmina
+            then
+                -- Montepremi
+                if v_is_criterium then
+                    p_montepremi := case when v_is_finale
+                                        then CASE p_anno WHEN 2025 THEN C_2025_SO_CC_CRIT_4_FINALE ELSE C_2025_SO_CC_CRIT_4_FINALE END
+                                        else CASE p_anno WHEN 2025 THEN C_2025_SO_CC_CRIT_4_PROVA ELSE C_2025_SO_CC_CRIT_4_PROVA END
+                                   end;  -- valori criterium
+                else
+                    p_montepremi := case when v_is_finale
+                                        then CASE p_anno WHEN 2025 THEN C_2025_SO_CC_CAMP_4_FINALE ELSE C_2025_SO_CC_CAMP_4_FINALE END
+                                        else CASE p_anno WHEN 2025 THEN C_2025_SO_CC_CAMP_4_PROVA ELSE C_2025_SO_CC_CAMP_4_PROVA END
+                                   end; -- campionato
+                end if;
+    
+                -- Descrizione
+                p_desc_calcolo_premio := case 
+                    when v_is_criterium and v_is_finale     then 'CRITERIUM 4 ANNI - FINALE'
+                    when v_is_criterium and not v_is_finale then 'CRITERIUM 4 ANNI - PROVA'
+                    when not v_is_criterium and v_is_finale then 'CAMPIONATO 4 ANNI - FINALE'
+                    else 'CAMPIONATO 4 ANNI - PROVA'
+                end;
+                
+                -- Percentuali giudizio/precisione per et¿ 4
+                if v_is_criterium then
+                    v_perc_giudizio := 1;
+                    v_perc_precis   := 0;
+                else
+                    v_perc_giudizio := CASE p_anno WHEN 2025 THEN C_2025_SO_PERC_ELITE4_GIU ELSE C_2025_SO_PERC_ELITE4_GIU END;
+                    v_perc_precis   := CASE p_anno WHEN 2025 THEN C_2025_SO_PERC_ELITE4_PREC ELSE C_2025_SO_PERC_ELITE4_PREC END;
+                end if;
+            elsif v_eta = 5
+            then
+                -- Montepremi
+                if v_is_criterium then
+                    p_montepremi := case when v_is_finale
+                                        then CASE p_anno WHEN 2025 THEN C_2025_SO_CC_CRIT_5_FINALE ELSE C_2025_SO_CC_CRIT_5_FINALE END
+                                        else CASE p_anno WHEN 2025 THEN C_2025_SO_CC_CRIT_5_PROVA ELSE C_2025_SO_CC_CRIT_5_PROVA END
+                                   end;  -- valori criterium
+                else
+                    p_montepremi := case when v_is_finale
+                                        then CASE p_anno WHEN 2025 THEN C_2025_SO_CC_CAMP_5_FINALE ELSE C_2025_SO_CC_CAMP_5_FINALE END
+                                        else CASE p_anno WHEN 2025 THEN C_2025_SO_CC_CAMP_5_PROVA ELSE C_2025_SO_CC_CAMP_5_PROVA END
+                                   end; -- campionato
+                end if;
+    
+                -- Descrizione
+                p_desc_calcolo_premio := case 
+                    when v_is_criterium and v_is_finale     then 'CRITERIUM 5 ANNI - FINALE'
+                    when v_is_criterium and not v_is_finale then 'CRITERIUM 5 ANNI - PROVA'
+                    when not v_is_criterium and v_is_finale then 'CAMPIONATO 5 ANNI - FINALE'
+                    else 'CAMPIONATO 5 ANNI - PROVA'
+                end;
+                
+                -- Percentuali giudizio/precisione per et¿ 5
+                if v_is_criterium then
+                    v_perc_giudizio := 1;
+                    v_perc_precis   := 0;
+                else
+                    v_perc_giudizio := CASE p_anno WHEN 2025 THEN C_2025_SO_PERC_ELITE5_GIU ELSE C_2025_SO_PERC_ELITE5_GIU END;
+                    v_perc_precis   := CASE p_anno WHEN 2025 THEN C_2025_SO_PERC_ELITE5_PREC ELSE C_2025_SO_PERC_ELITE5_PREC END;
+                end if;
+            elsif v_eta in (6,7) and  upper(p_dati_gara.desc_nome_gara_esterna) not like'%OLTRE%' --se BREVETTO o 1¿ GR allora si stratta di CRITURIUM con altri montepremi
+            then
+                -- Montepremi
+                if v_is_criterium then
+                    p_montepremi := case when v_is_finale
+                                        then CASE p_anno WHEN 2025 THEN C_2025_SO_CC_CRIT_67_FINALE ELSE C_2025_SO_CC_CRIT_67_FINALE END
+                                        else CASE p_anno WHEN 2025 THEN C_2025_SO_CC_CRIT_67_PROVA ELSE C_2025_SO_CC_CRIT_67_PROVA END
+                                   end;  -- valori criterium
+                else
+                    p_montepremi := case when v_is_finale
+                                        then CASE p_anno WHEN 2025 THEN C_2025_SO_CC_CAMP_67_FINALE ELSE C_2025_SO_CC_CAMP_67_FINALE END
+                                        else CASE p_anno WHEN 2025 THEN C_2025_SO_CC_CAMP_67_PROVA ELSE C_2025_SO_CC_CAMP_67_PROVA END
+                                   end; -- campionato
+                end if;
+    
+                -- Descrizione
+                p_desc_calcolo_premio := case 
+                    when v_is_criterium and v_is_finale     then 'CRITERIUM 6/7 ANNI - FINALE'
+                    when v_is_criterium and not v_is_finale then 'CRITERIUM 6/7 ANNI - PROVA'
+                    when not v_is_criterium and v_is_finale then 'CAMPIONATO 6/7 ANNI - FINALE'
+                    else 'CAMPIONATO 6/7 ANNI - PROVA'
+                end;
+                
+                -- Percentuali giudizio/precisione per et¿ 6 non ci sono viene dato il 100% a quella unica gara
+                v_perc_giudizio := 1;
+                v_perc_precis   := 1;
+            elsif v_eta = 7 and upper(p_dati_gara.desc_nome_gara_esterna) like'%OLTRE%' --se BREVETTO o 1¿ GR allora si stratta di CRITURIUM con altri montepremi
+            then
+                -- Montepremi
+                p_montepremi := case when v_is_finale
+                                    then CASE p_anno WHEN 2025 THEN C_2025_SO_CC_CRIT_7P_FINALE ELSE C_2025_SO_CC_CRIT_7P_FINALE END
+                                    else CASE p_anno WHEN 2025 THEN C_2025_SO_CC_CRIT_7P_PROVA ELSE C_2025_SO_CC_CRIT_7P_PROVA END
+                               end;  -- valori criterium
+                
+                -- Descrizione
+                p_desc_calcolo_premio :=  'CRITERIUM 7 ANNI E OLTRE BR o 1GR';
+                
+                -- Percentuali giudizio/precisione per et¿ 6 non ci sono viene dato il 100% a quella unica gara
+                v_perc_giudizio := 1;
+                v_perc_precis   := 1;
+            
+            elsif v_eta >= 8
+            then
+                 -- Montepremi
+                if v_is_criterium then
+                    p_montepremi := case when v_is_finale
+                                        then CASE p_anno WHEN 2025 THEN C_2025_SO_CC_CRIT_8_FINALE ELSE C_2025_SO_CC_CRIT_8_FINALE END
+                                        else CASE p_anno WHEN 2025 THEN C_2025_SO_CC_CRIT_8_PROVA ELSE C_2025_SO_CC_CRIT_8_PROVA END
+                                   end;  -- valori criterium
+                else
+                    p_montepremi := case when v_is_finale
+                                        then CASE p_anno WHEN 2025 THEN C_2025_SO_CC_CAMP_8_FINALE ELSE C_2025_SO_CC_CAMP_8_FINALE END
+                                        else CASE p_anno WHEN 2025 THEN C_2025_SO_CC_CAMP_8_PROVA ELSE C_2025_SO_CC_CAMP_8_PROVA END
+                                   end; -- campionato
+                    --nel solo caso di terza prova usa diverso valore
+                    if instr(upper(p_dati_gara.desc_nome_gara_esterna), '3')>0 then
+                        p_montepremi := CASE p_anno WHEN 2025 THEN C_2025_SO_CC_CAMP_8_PROVA3 ELSE C_2025_SO_CC_CAMP_8_PROVA3 END;
+                    end if;
+                end if;
+    
+                -- Descrizione
+                p_desc_calcolo_premio := case 
+                    when v_is_criterium and v_is_finale     then 'CRITERIUM 8 E OLTRE ANNI - FINALE'
+                    when v_is_criterium and not v_is_finale then 'CRITERIUM 8 E OLTRE ANNI - PROVA'
+                    when not v_is_criterium and v_is_finale then 'CAMPIONATO 8 E OLTRE ANNI - FINALE'
+                    else 'CAMPIONATO 8 E OLTRE ANNI - PROVA'
+                end;
+                
+                -- Percentuali giudizio/precisione per et¿ 6 non ci sono viene dato il 100% a quella unica gara
+                v_perc_giudizio := 1;
+                v_perc_precis   := 1;
+            end if;
+        
+        --CASI NON FINALI e NON CRITERIUM
+        elsif v_categoria = 'SPORT'
+        then
+            p_montepremi := greatest (p_num_part, CASE p_anno WHEN 2025 THEN C_2025_SO_SPORT_MIN_PART ELSE C_2025_SO_SPORT_MIN_PART END)
+                            * CASE p_anno WHEN 2025 THEN C_2025_SO_SPORT_EURO_PART ELSE C_2025_SO_SPORT_EURO_PART END;
+            p_desc_calcolo_premio := p_desc_calcolo_premio ||' quota per partente '|| CASE p_anno WHEN 2025 THEN C_2025_SO_SPORT_EURO_PART ELSE C_2025_SO_SPORT_EURO_PART END ||' Euro ';
+                
+        elsif v_categoria = 'SELEZIONE'
+        then
+            p_montepremi :=
+                case
+                    when v_eta = 5 and p_giornata = 1 then CASE p_anno WHEN 2025 THEN C_2025_SO_SEL_5_G1 ELSE C_2025_SO_SEL_5_G1 END
+                    when v_eta = 5 and p_giornata = 2 then CASE p_anno WHEN 2025 THEN C_2025_SO_SEL_5_G2 ELSE C_2025_SO_SEL_5_G2 END
+                    when v_eta = 5 and p_giornata = 3 then CASE p_anno WHEN 2025 THEN C_2025_SO_SEL_5_G3 ELSE C_2025_SO_SEL_5_G3 END
+                    when v_eta = 6 and p_giornata = 1 then CASE p_anno WHEN 2025 THEN C_2025_SO_SEL_6_G1 ELSE C_2025_SO_SEL_6_G1 END
+                    when v_eta = 6 and p_giornata = 2 then CASE p_anno WHEN 2025 THEN C_2025_SO_SEL_6_G2 ELSE C_2025_SO_SEL_6_G2 END
+                    when v_eta = 6 and p_giornata = 3 then CASE p_anno WHEN 2025 THEN C_2025_SO_SEL_6_G3 ELSE C_2025_SO_SEL_6_G3 END
+                    when v_eta = 7 and p_giornata = 1 then CASE p_anno WHEN 2025 THEN C_2025_SO_SEL_7_G1 ELSE C_2025_SO_SEL_7_G1 END
+                    when v_eta = 7 and p_giornata = 2 then CASE p_anno WHEN 2025 THEN C_2025_SO_SEL_7_G2 ELSE C_2025_SO_SEL_7_G2 END
+                    when v_eta = 7 and p_giornata = 3 then CASE p_anno WHEN 2025 THEN C_2025_SO_SEL_7_G3 ELSE C_2025_SO_SEL_7_G3 END
+                    else 0
+                end;
+             p_desc_calcolo_premio :=
+                case
+                    when v_eta = 5 and p_giornata = 1 then p_desc_calcolo_premio ||' montepremi fisso '||C_2025_SO_SEL_5_G1||' Euro '
+                    when v_eta = 5 and p_giornata = 2 then p_desc_calcolo_premio ||' montepremi fisso '||C_2025_SO_SEL_5_G2||' Euro '
+                    when v_eta = 5 and p_giornata = 3 then p_desc_calcolo_premio ||' montepremi fisso '||C_2025_SO_SEL_5_G3||' Euro '
+                    when v_eta = 6 and p_giornata = 1 then p_desc_calcolo_premio ||' montepremi fisso '||C_2025_SO_SEL_6_G1||' Euro '
+                    when v_eta = 6 and p_giornata = 2 then p_desc_calcolo_premio ||' montepremi fisso '||C_2025_SO_SEL_6_G2||' Euro '
+                    when v_eta = 6 and p_giornata = 3 then p_desc_calcolo_premio ||' montepremi fisso '||C_2025_SO_SEL_6_G3||' Euro '
+                    when v_eta = 7 and p_giornata = 1 then p_desc_calcolo_premio ||' montepremi fisso '||C_2025_SO_SEL_7_G1||' Euro '
+                    when v_eta = 7 and p_giornata = 2 then p_desc_calcolo_premio ||' montepremi fisso '||C_2025_SO_SEL_7_G2||' Euro '
+                    when v_eta = 7 and p_giornata = 3 then p_desc_calcolo_premio ||' montepremi fisso '||C_2025_SO_SEL_7_G3||' Euro '
+                    else 0
+                end;
+
+                    
+                    
+        elsif v_categoria = 'BREVETTO' and v_eta >= 7
+        then
+            p_montepremi := greatest (p_num_part, CASE p_anno WHEN 2025 THEN C_2025_SO_BREVETTO_MIN_PART ELSE C_2025_SO_BREVETTO_MIN_PART END)
+                            * CASE p_anno WHEN 2025 THEN C_2025_SO_BREVETTO_EURO_PART ELSE C_2025_SO_BREVETTO_EURO_PART END;
+            p_desc_calcolo_premio := p_desc_calcolo_premio ||' quota per partente '||CASE p_anno WHEN 2025 THEN C_2025_SO_BREVETTO_EURO_PART ELSE C_2025_SO_BREVETTO_EURO_PART END||' Euro ';
+           
+        elsif v_categoria in ('ELITE', 'ALTO')
+        then
+            if v_eta = 4
+            then
+                if p_periodo = 1
+                then
+                    p_montepremi := greatest (p_num_part, CASE p_anno WHEN 2025 THEN C_2025_SO_ELITE_MIN_PART ELSE C_2025_SO_ELITE_MIN_PART END)
+                                    * CASE p_anno WHEN 2025 THEN C_2025_SO_ELITE_4_P1 ELSE C_2025_SO_ELITE_4_P1 END;
+                    p_desc_calcolo_premio := p_desc_calcolo_premio ||' quota per partente '||CASE p_anno WHEN 2025 THEN C_2025_SO_ELITE_4_P1 ELSE C_2025_SO_ELITE_4_P1 END||' Euro ';
+
+                elsif p_periodo = 2
+                then
+                    p_montepremi := greatest (p_num_part, CASE p_anno WHEN 2025 THEN C_2025_SO_ELITE_MIN_PART ELSE C_2025_SO_ELITE_MIN_PART END)
+                                    * CASE p_anno WHEN 2025 THEN C_2025_SO_ELITE_4_P2 ELSE C_2025_SO_ELITE_4_P2 END;
+                    p_desc_calcolo_premio := p_desc_calcolo_premio ||' quota per partente '||CASE p_anno WHEN 2025 THEN C_2025_SO_ELITE_4_P2 ELSE C_2025_SO_ELITE_4_P2 END||' Euro ';
+
+                end if;
+            elsif v_eta = 5
+            then
+                if p_periodo = 1
+                then
+                    p_montepremi := greatest (p_num_part, CASE p_anno WHEN 2025 THEN C_2025_SO_ELITE_MIN_PART ELSE C_2025_SO_ELITE_MIN_PART END)
+                                    * CASE p_anno WHEN 2025 THEN C_2025_SO_ELITE_5_P1 ELSE C_2025_SO_ELITE_5_P1 END;
+                    p_desc_calcolo_premio := p_desc_calcolo_premio ||' quota per partente '||CASE p_anno WHEN 2025 THEN C_2025_SO_ELITE_5_P1 ELSE C_2025_SO_ELITE_5_P1 END||' Euro ';
+
+                elsif p_periodo = 2
+                then
+                    p_montepremi := greatest (p_num_part, CASE p_anno WHEN 2025 THEN C_2025_SO_ELITE_MIN_PART ELSE C_2025_SO_ELITE_MIN_PART END)
+                                    * CASE p_anno WHEN 2025 THEN C_2025_SO_ELITE_5_P2 ELSE C_2025_SO_ELITE_5_P2 END;
+                    p_desc_calcolo_premio := p_desc_calcolo_premio ||' quota per partente '||CASE p_anno WHEN 2025 THEN C_2025_SO_ELITE_5_P2 ELSE C_2025_SO_ELITE_5_P2 END||' Euro ';
+
+                end if;
+            elsif v_eta = 6
+            then
+                if p_periodo = 1
+                then
+                    case p_giornata
+                        when 1
+                        then
+                            p_montepremi := greatest (p_num_part, CASE p_anno WHEN 2025 THEN C_2025_SO_ELITE_MIN_PART ELSE C_2025_SO_ELITE_MIN_PART END)
+                                            * CASE p_anno WHEN 2025 THEN C_2025_SO_ELITE_6_P1_G1_PART ELSE C_2025_SO_ELITE_6_P1_G1_PART END;
+                            p_desc_calcolo_premio := p_desc_calcolo_premio ||' quota per partente '||CASE p_anno WHEN 2025 THEN C_2025_SO_ELITE_6_P1_G1_PART ELSE C_2025_SO_ELITE_6_P1_G1_PART END||' Euro ';
+
+                        when 2
+                        then
+                            p_montepremi := CASE p_anno WHEN 2025 THEN C_2025_SO_ELITE_6_P1_G2 ELSE C_2025_SO_ELITE_6_P1_G2 END;
+                            p_desc_calcolo_premio := p_desc_calcolo_premio ||' quota fisso '||CASE p_anno WHEN 2025 THEN C_2025_SO_ELITE_6_P1_G2 ELSE C_2025_SO_ELITE_6_P1_G2 END||' Euro ';
+
+                        when 3
+                        then
+                            p_montepremi := CASE p_anno WHEN 2025 THEN C_2025_SO_ELITE_6_P1_G3 ELSE C_2025_SO_ELITE_6_P1_G3 END;
+                            p_desc_calcolo_premio := p_desc_calcolo_premio ||' quota fisso '||CASE p_anno WHEN 2025 THEN C_2025_SO_ELITE_6_P1_G3 ELSE C_2025_SO_ELITE_6_P1_G3 END||' Euro ';
+
+                    end case;
+                elsif p_periodo = 2
+                then
+                    case p_giornata
+                        when 2
+                        then
+                            p_montepremi := CASE p_anno WHEN 2025 THEN C_2025_SO_ELITE_6_P2_G2 ELSE C_2025_SO_ELITE_6_P2_G2 END;
+                            p_desc_calcolo_premio := p_desc_calcolo_premio ||' montepremi fisso '||CASE p_anno WHEN 2025 THEN C_2025_SO_ELITE_6_P2_G2 ELSE C_2025_SO_ELITE_6_P2_G2 END||' Euro ';
+
+                        when 3
+                        then
+                            p_montepremi := CASE p_anno WHEN 2025 THEN C_2025_SO_ELITE_6_P2_G3 ELSE C_2025_SO_ELITE_6_P2_G3 END;
+                            p_desc_calcolo_premio := p_desc_calcolo_premio ||' montepremi fisso '||CASE p_anno WHEN 2025 THEN C_2025_SO_ELITE_6_P2_G3 ELSE C_2025_SO_ELITE_6_P2_G3 END||' Euro ';
+
+                    end case;
+                end if;
+            elsif v_eta = 7
+            then
+                if p_periodo = 1
+                then
+                    p_montepremi :=
+                        case when p_giornata = 3
+                            then CASE p_anno WHEN 2025 THEN C_2025_SO_ELITE_7_P1_G3 ELSE C_2025_SO_ELITE_7_P1_G3 END
+                            else CASE p_anno WHEN 2025 THEN C_2025_SO_ELITE_7_P1_G12 ELSE C_2025_SO_ELITE_7_P1_G12 END
+                        end;
+
+                    p_desc_calcolo_premio:=
+                        case p_giornata
+                        when 3 then p_desc_calcolo_premio ||' montepremi fisso '||CASE p_anno WHEN 2025 THEN C_2025_SO_ELITE_7_P1_G3 ELSE C_2025_SO_ELITE_7_P1_G3 END||' Euro '
+                        else p_desc_calcolo_premio ||' montepremi fisso '||CASE p_anno WHEN 2025 THEN C_2025_SO_ELITE_7_P1_G12 ELSE C_2025_SO_ELITE_7_P1_G12 END||' Euro '
+                    end;
+
+                else
+                    p_montepremi :=
+                        case when p_giornata = 3
+                            then CASE p_anno WHEN 2025 THEN C_2025_SO_ELITE_7_P2_G3 ELSE C_2025_SO_ELITE_7_P2_G3 END
+                            else CASE p_anno WHEN 2025 THEN C_2025_SO_ELITE_7_P2_G12 ELSE C_2025_SO_ELITE_7_P2_G12 END
+                        end;
+                end if;
+            end if;
+        end if;
+
+
+       if c_debug
+        then
+            dbms_output.put_line (CHR(10) || '>> CALCOLO MONTEPREMI');
+            dbms_output.put_line (RPAD('-', 80, '-'));
+            dbms_output.put_line ('   Montepremi base        : ¿'|| LPAD(TO_CHAR(p_montepremi, '999990.00'), 12));
+            dbms_output.put_line ('   Num. partenti          : ' || LPAD(p_num_part, 3));
+            dbms_output.put_line ('   Categoria              : ' || v_categoria);
+            dbms_output.put_line ('   Periodo                : ' || p_periodo);
+            dbms_output.put_line ('   Perc. giudizio         : ' || TO_CHAR(v_perc_giudizio * 100, '990') || '%');
+            dbms_output.put_line ('   Perc. precisione       : ' || TO_CHAR(v_perc_precis * 100, '990') || '%');
+            dbms_output.put_line (RPAD('-', 80, '-'));
+        end if;
+
+        if v_tipo_gara = 'GIUDIZIO'
+        then
+            p_montepremi:= round (p_montepremi * v_perc_giudizio, 2);
+        elsif v_tipo_gara = 'PRECISIONE'
+        then
+            p_montepremi:= round (p_montepremi * v_perc_precis, 2);
+        else
+            p_montepremi:= p_montepremi; -- casi come A TEMPO o  FASI CONSECUTIVE
+        end if;
+    exception
+        when others
+        then
+            if c_debug
+            then
+                dbms_output.put_line (
+                    'ERRORE FN_CALCOLA_MONTEPREMI_SALTO: ' || sqlerrm);
+            end if;
+
+            --return 0;
+    end;
+
+
+FUNCTION handler_salto_ostacoli_v2 (
+    p_gara_id       IN NUMBER, 
+    p_anno          IN NUMBER DEFAULT 2025, 
+    p_modalita_test IN BOOLEAN DEFAULT FALSE
+) RETURN t_tabella_premi
+IS
+    l_risultati             t_tabella_premi := t_tabella_premi ();
+    i                       PLS_INTEGER := 0;
+
+    v_dati_gara             tc_dati_gara_esterna%ROWTYPE;
+    v_categoria             VARCHAR2 (50);
+    v_tipo_distrib          VARCHAR2 (50);
+    v_formula               VARCHAR2 (50);
+    v_nome_manifestazione   VARCHAR2 (250);
+    v_eta                   NUMBER;
+    v_periodo               NUMBER;
+    v_num_partenti          NUMBER;
+    v_montepremi_tot        NUMBER := NULL;
+    v_giornata              NUMBER;
+    v_premio                NUMBER;
+    v_num_partenti_valido   NUMBER := 0; 
+    v_desc_calcolo_premio   VARCHAR2(5000);
+    v_desc_calcolo          VARCHAR2(1000);
+    v_classifica            pkg_calcoli_premi_manifest.t_classifica;
+    v_mappa_premi           pkg_calcoli_premi_manifest.t_mappatura_premi;
+    v_anno_effettivo        NUMBER := p_anno;  
+    v_disciplina_id         NUMBER;
+    v_versione_algoritmo    VARCHAR2(50) := 'V2.1-REF-' || p_anno; -- Aggiornata versione
+            
+    CURSOR c_classifica IS
+          SELECT RANK () OVER (
+                     ORDER BY
+                        CASE WHEN t.nume_punti IS NOT NULL THEN 1 ELSE 2 END,
+                        t.nume_punti DESC,
+                        t.nume_piazzamento ASC
+                 ) AS posizione_masaf,
+                 t.*
+            FROM tc_dati_classifica_esterna t
+           WHERE fk_sequ_id_dati_gara_esterna = p_gara_id
+             AND t.fk_sequ_id_cavallo IS NOT NULL
+             AND t.nume_piazzamento <> 920 -- Escludo i FUORI CLASSIFICA o FUORI GARA 
+        ORDER BY CASE WHEN t.nume_punti IS NOT NULL THEN 1 ELSE 2 END,
+                 t.nume_punti DESC,
+                 t.nume_piazzamento ASC;
+BEGIN
+    IF c_debug THEN
+        DBMS_OUTPUT.PUT_LINE (CHR(10) || RPAD('=', 80, '='));
+        DBMS_OUTPUT.PUT_LINE ('   HANDLER SALTO OSTACOLI V2 (TEST MODE: ' || CASE WHEN p_modalita_test THEN 'ON' ELSE 'OFF' END || ')');
+        DBMS_OUTPUT.PUT_LINE ('   Gara ID: ' || p_gara_id);
+        DBMS_OUTPUT.PUT_LINE (RPAD('=', 80, '='));
+    END IF;
+
+    -- 1. Info gara
+    v_dati_gara := fn_info_gara_esterna (p_gara_id);
+    v_disciplina_id := get_disciplina (p_gara_id);
+    v_categoria := UPPER (fn_desc_tipologica (v_dati_gara.fk_codi_categoria));
+    v_eta := TO_NUMBER (SUBSTR (fn_desc_tipologica (v_dati_gara.fk_codi_eta), 1, 1));
+            
+    -- 2. Numero partenti MASAF
+    SELECT COUNT (*)
+      INTO v_num_partenti
+      FROM tc_dati_classifica_esterna
+     WHERE fk_sequ_id_dati_gara_esterna = p_gara_id
+       AND fk_sequ_id_cavallo IS NOT NULL
+       AND nume_piazzamento <> 920; 
+
+    v_desc_calcolo_premio := 'Calcolo effettuato considerando:'||u'\000A'||' - '||v_num_partenti||' cavalli partenti'||u'\000A';
+    
+    IF v_num_partenti = 0 THEN
+        RETURN l_risultati;
+    END IF;
+
+    -- 3. Periodo e giornata
+    v_periodo := fn_periodo_salto_ostacoli (v_dati_gara.data_gara_esterna);
+        
+    v_desc_calcolo_premio := v_desc_calcolo_premio ||' - Periodo '||v_periodo;
+    
+    SELECT 1 + TRUNC(TO_DATE(dg.data_gara_esterna, 'YYYYMMDD'))
+          - TRUNC(TO_DATE(ed.data_inizio_edizione, 'YYYYMMDD'))
+      INTO v_giornata
+      FROM tc_dati_gara_esterna dg
+      JOIN tc_dati_edizione_esterna ee ON ee.sequ_id_dati_edizione_esterna = dg.fk_sequ_id_dati_ediz_esterna
+      JOIN TC_EDIZIONE ed ON ed.sequ_id_edizione = ee.fk_sequ_id_edizione
+     WHERE dg.sequ_id_dati_gara_esterna = p_gara_id;
+
+    v_desc_calcolo_premio := v_desc_calcolo_premio||', Giornata '||v_giornata||u'\000A';
+
+    -- 4. Calcolo montepremi
+    fn_calcola_montepremi_salto_v2 (
+         p_dati_gara           => v_dati_gara,
+         p_periodo             => v_periodo,
+         p_num_part            => v_num_partenti,
+         p_giornata            => v_giornata,
+         p_anno                => v_anno_effettivo,
+         p_desc_calcolo_premio => v_desc_calcolo,
+         p_montepremi          => v_montepremi_tot
+    );
+
+    v_desc_calcolo_premio := v_desc_calcolo_premio||' - Montepremi '||NVL(v_montepremi_tot,0)||' Euro ('||v_desc_calcolo||')'||u'\000A';
+    
+    -- Recupero formula dell'edizione
+    SELECT UPPER (mf.desc_formula), UPPER(mf.DESC_DENOM_MANIFESTAZIONE)
+      INTO v_formula, v_nome_manifestazione
+      FROM tc_dati_gara_esterna  dg
+      JOIN tc_dati_edizione_esterna ee ON ee.sequ_id_dati_edizione_esterna = dg.fk_sequ_id_dati_ediz_esterna
+      JOIN tc_edizione ed ON ed.sequ_id_edizione = ee.fk_sequ_id_edizione
+      JOIN tc_manifestazione mf ON mf.sequ_id_manifestazione = ed.fk_sequ_id_manifestazione
+     WHERE dg.sequ_id_dati_gara_esterna = p_gara_id;    
+    
+    IF c_debug THEN
+        DBMS_OUTPUT.PUT_LINE('   >> Tipo v_tipo_distrib: ' || v_nome_manifestazione || ' - '|| v_eta || ' - '|| v_categoria || ' - '|| v_dati_gara.desc_nome_gara_esterna || ' << ');
+    END IF;
+
+    -- 5. Determinazione Tipo distribuzione (LOGICA CENTRALE con COSTANTI)
+    v_tipo_distrib :=
+        CASE
+            -- CSIO Roma
+            WHEN v_nome_manifestazione LIKE C_PAT_CSIO_ROMA THEN C_DISTRIB_FISE
+            
+            -- Finale Circuito Classico - Criterium >= 6 anni
+            WHEN v_nome_manifestazione LIKE C_PAT_FINALE_CLASSICO
+                 AND UPPER(v_dati_gara.desc_nome_gara_esterna) LIKE C_PAT_CRITERIUM
+                 AND v_eta >= 6 THEN C_DISTRIB_FISE
+            
+            -- Campionati del Mondo (Generico, poi Lanaken gestito nello specifico)
+            WHEN v_nome_manifestazione LIKE C_PAT_MONDIALI THEN C_DISTRIB_MASAF 
+            
+            -- Elite/Alto/Sport Specifici
+            WHEN v_categoria = C_CAT_ELITE AND v_eta = 6 THEN C_DISTRIB_FISE
+            WHEN v_categoria = C_CAT_ALTO AND v_eta BETWEEN 5 AND 7 THEN C_DISTRIB_FISE
+            WHEN v_categoria = C_CAT_SPORT AND v_eta IN (6, 7) THEN C_DISTRIB_FISE
+            
+            -- Elite 7 Anni casi particolari (Mista/Fasi Cons)
+            WHEN v_categoria = C_CAT_ELITE AND v_eta = 7 
+                 AND INSTR(v_dati_gara.desc_nome_gara_esterna, C_PAT_MISTA) > 0 THEN C_DISTRIB_FISE
+            WHEN v_categoria = C_CAT_ELITE AND v_eta = 7 
+                 AND INSTR(v_dati_gara.desc_nome_gara_esterna, C_PAT_FASI_CONS) > 0 THEN C_DISTRIB_FISE
+            
+            ELSE C_DISTRIB_MASAF
+        END;
+    
+    v_desc_calcolo_premio := v_desc_calcolo_premio||' - Distribuzione: '||v_tipo_distrib|| 
+                             CASE v_tipo_distrib 
+                                 WHEN C_DISTRIB_MASAF THEN ' (a Fasce)'||u'\000A' 
+                                 ELSE ' (Tabella FISE)' ||u'\000A'
+                             END ||' - Eta: '||v_eta||' anni'||u'\000A'||' - Categoria:'|| v_categoria||u'\000A';
+        
+    -- 6. Costruzione classifica e calcolo premi
+    DECLARE
+        idx  PLS_INTEGER := 0;
+    BEGIN
+        -- Popolamento Array Classifica
+        FOR rec IN c_classifica LOOP
+            idx := idx + 1;
+            v_classifica (idx).id_cavallo     := rec.fk_sequ_id_cavallo;
+            v_classifica (idx).posizione      := rec.posizione_masaf;
+            v_classifica (idx).punteggio      := rec.nume_punti;
+            v_classifica (idx).vincite_fise   := rec.vincite_fise;
+            v_classifica (idx).posizione_fise := rec.nume_piazzamento;
+            v_num_partenti_valido             := v_num_partenti_valido + 1;
+        END LOOP;
+
+        -- BRANCH: MASAF
+        IF v_tipo_distrib = C_DISTRIB_MASAF AND v_formula <> C_FORMULA_FISE THEN
+            
+            -- CASO SPECIALE: LANAKEN (MONDIALI GIOVANI)
+            IF v_nome_manifestazione LIKE C_PAT_LANAKEN_START THEN
+                DECLARE
+                    v_premio_tmp NUMBER;
+                    v_desc       VARCHAR2(100) := UPPER(v_dati_gara.desc_nome_gara_esterna);
+                BEGIN
+                    FOR i IN 1 .. v_classifica.COUNT LOOP
+                        IF NVL(v_classifica(i).posizione_fise, 0) >= 900 THEN
+                            v_premio_tmp := 0;
+                        ELSIF v_desc LIKE C_PAT_CONTRIBUTO THEN
+                            v_premio_tmp := C_2025_SO_LANAKEN_CONTRIB; -- Anno gestito da costante package se cambia
+                        ELSIF v_desc LIKE C_PAT_FINALE AND v_desc NOT LIKE C_PAT_CONSOLAZIONE THEN
+                            v_premio_tmp := 
+                                CASE
+                                    WHEN v_classifica(i).posizione_fise = 1 THEN C_2025_SO_LANAKEN_FINALE_1
+                                    WHEN v_classifica(i).posizione_fise BETWEEN 2 AND 5 THEN C_2025_SO_LANAKEN_FINALE_2_5
+                                    WHEN v_classifica(i).posizione_fise BETWEEN 6 AND 10 THEN C_2025_SO_LANAKEN_FINALE_6_10
+                                    ELSE C_2025_SO_LNKN_FIN_OLTRE
+                                END;
+                        ELSE
+                            v_premio_tmp := 
+                                CASE
+                                    WHEN v_classifica(i).posizione_fise = 1 THEN C_2025_SO_LANAKEN_QUAL_1
+                                    WHEN v_classifica(i).posizione_fise BETWEEN 2 AND 5 THEN C_2025_SO_LANAKEN_QUAL_2_5
+                                    WHEN v_classifica(i).posizione_fise BETWEEN 6 AND 10 THEN C_2025_SO_LANAKEN_QUAL_6_10
+                                    ELSE 0
+                                END;
+                        END IF;
+                        
+                        v_mappa_premi(i).id_cavallo := v_classifica(i).id_cavallo;
+                        v_mappa_premi(i).premio     := v_premio_tmp;
+                        v_mappa_premi(i).fascia     := v_classifica(i).posizione_fise;
+                    END LOOP;
+                END;
+            
+            -- CASO SPECIALE: INCENTIVO MASAF SU GARA FISE (10%)
+            ELSIF fn_incentivo_masaf_gara_fise(p_gara_id) > 0 THEN
+                FOR i IN 1 .. v_classifica.COUNT LOOP
+                    v_mappa_premi(i).id_cavallo := v_classifica(i).id_cavallo;
+                    v_mappa_premi(i).premio     := ROUND(v_classifica(i).vincite_fise * C_2025_SO_INCENTIVO_FISE_PERC, 2);
+                    v_mappa_premi(i).fascia     := v_classifica(i).posizione;
+                END LOOP;
+                v_desc_calcolo_premio := v_desc_calcolo_premio ||'Incentivo '||(C_2025_SO_INCENTIVO_FISE_PERC * 100)||'%';
+            
+            -- CASO STANDARD MASAF (CALCOLO FASCE)
+            ELSE
+                DECLARE
+                    v_premiabili        NUMBER;
+                    v_desc_fasce        VARCHAR2(10000);
+                    v_desc_premiabili   VARCHAR2(500);
+                BEGIN
+                    fn_calcola_n_premiabili_masaf(
+                        p_dati_gara       => v_dati_gara,
+                        p_num_part        => v_num_partenti_valido,
+                        p_n_premiabili    => v_premiabili,
+                        p_desc_premiabili => v_desc_premiabili
+                    );
+                        
+                    pkg_calcoli_premi_manifest.calcola_fasce_premiabili_masaf(
+                        p_classifica          => v_classifica,
+                        p_montepremi          => v_montepremi_tot,
+                        p_premiabili          => v_premiabili,
+                        p_priorita_fasce_alte => FALSE,
+                        p_mappa_premi         => v_mappa_premi,
+                        p_desc_fasce          => v_desc_fasce
+                    );
+                        
+                     v_desc_calcolo_premio := v_desc_calcolo_premio ||' '||v_desc_premiabili||'. ';
+                     v_desc_calcolo_premio := v_desc_calcolo_premio ||' Dettaglio fasce:'||v_desc_fasce||'.';
+                END;
+            END IF;
+
+        -- BRANCH: FORMULA FISE ESPLICITA
+        ELSIF v_formula = C_FORMULA_FISE THEN
+            FOR i IN 1 .. v_classifica.COUNT LOOP
+                v_mappa_premi(i).id_cavallo := v_classifica(i).id_cavallo;
+                v_mappa_premi(i).premio     := ROUND(v_classifica(i).vincite_fise * C_2025_SO_INCENTIVO_FISE_PERC, 2);
+                v_mappa_premi(i).fascia     := v_classifica(i).posizione;
+            END LOOP;
+            v_desc_calcolo_premio := v_desc_calcolo_premio ||' Incentivo '||(C_2025_SO_INCENTIVO_FISE_PERC * 100)||'% ';
+
+        -- BRANCH: FISE STANDARD / CSIO
+        ELSE
+             -- Se CSIO o Finale Criterium Classico (identificate dai pattern)
+             IF v_nome_manifestazione LIKE C_PAT_CSIO_ROMA OR v_nome_manifestazione LIKE C_PAT_FINALE_CLASSICO THEN
+                FOR i IN 1 .. v_classifica.COUNT LOOP
+                    v_mappa_premi(i).id_cavallo := v_classifica(i).id_cavallo;
+                    IF fn_conta_parimerito(v_dati_gara, v_classifica(i).posizione) <> 0 THEN
+                        v_mappa_premi(i).premio := fn_premio_distribuzione_csio(
+                            posizione          => v_classifica(i).posizione,
+                            num_con_parimerito => fn_conta_parimerito(v_dati_gara, v_classifica(i).posizione),
+                            montepremi         => v_montepremi_tot);
+                    ELSE
+                        v_mappa_premi(i).premio := 0;
+                    END IF;
+                    v_mappa_premi(i).fascia := v_classifica(i).posizione;
+                END LOOP;
+            ELSE 
+                -- FISE Standard (Tabella A)
+                FOR i IN 1 .. v_classifica.COUNT LOOP
+                    v_mappa_premi(i).id_cavallo := v_classifica(i).id_cavallo;
+                    v_mappa_premi(i).premio := fn_premio_distribuzione_fise(
+                        num_partiti        => v_num_partenti,
+                        posizione          => v_classifica(i).posizione,
+                        num_con_parimerito => fn_conta_parimerito(v_dati_gara, v_classifica(i).posizione),
+                        montepremi         => v_montepremi_tot);
+                    v_mappa_premi(i).fascia := v_classifica(i).posizione;
+                END LOOP;
+            END IF; 
+        END IF;
+    END;
+
+    -- 7. Ciclo finale: Assegnazione e Output
+    i := 0;
+    FOR rec IN c_classifica LOOP
+        -- Recupera il premio dalla mappa
+        calcola_premio_salto_ost_2025 (
+            p_dati_gara                  => v_dati_gara,
+            p_posizione                  => rec.posizione_masaf,
+            p_sequ_id_classifica_esterna => rec.sequ_id_classifica_esterna,
+            p_mappa_premi                => v_mappa_premi,
+            p_premio_cavallo             => v_premio);
+
+        i := i + 1;
+        l_risultati.EXTEND;
+        l_risultati (i).cavallo_id   := rec.fk_sequ_id_cavallo;
+        l_risultati (i).nome_cavallo := rec.desc_cavallo;
+        l_risultati (i).premio       := v_premio;
+        l_risultati (i).posizione    := rec.nume_piazzamento;
+
+        -- SNAPSHOT TEST
+        IF p_modalita_test THEN
+             MERGE_TEST_SNAPSHOT(
+                p_gara_id            => p_gara_id,
+                p_disciplina_id      => v_disciplina_id,
+                p_cavallo_id         => rec.fk_sequ_id_cavallo,
+                p_nome_cavallo       => rec.desc_cavallo,
+                p_posizione          => rec.posizione_masaf,
+                p_premio_calcolato   => v_premio,
+                p_note_calcolo       => v_desc_calcolo_premio,
+                p_versione_algoritmo => v_versione_algoritmo);
+        END IF;
+    END LOOP;
+
+    -- SALVATAGGIO PRODUZIONE
+    IF NOT p_modalita_test THEN
+       -- update tc_dati_gara_esterna ...
+       COMMIT;
+    END IF;
+    
+    IF c_debug THEN
+        DBMS_OUTPUT.PUT_LINE (CHR(10) || RPAD('=', 80, '='));
+        DBMS_OUTPUT.PUT_LINE ('   FINE HANDLER SALTO OSTACOLI V2 - Gara ID: ' || p_gara_id);
+        IF p_modalita_test THEN
+             DBMS_OUTPUT.PUT_LINE ('   ** ESEGUITO IN MODALITÀ TEST - NESSUN CAMBIO AI DATI DI GARA **');
+        END IF;
+        DBMS_OUTPUT.PUT_LINE (RPAD('=', 80, '=') || CHR(10));
+    END IF;
+    
+    RETURN l_risultati;
+
+EXCEPTION
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE ('ERRORE HANDLER_SALTO_OSTACOLI_V2: ' || SQLERRM);
+        RAISE;
+END handler_salto_ostacoli_v2;
+
+
+
+    
 end pkg_calcoli_premi_manifest;
 /

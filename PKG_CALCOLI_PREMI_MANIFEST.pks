@@ -1,5 +1,9 @@
 CREATE OR REPLACE PACKAGE UNIRE_REL2.PKG_CALCOLI_PREMI_MANIFEST
 AS
+    ---------------------------------------------------------------------------
+    -- SEZIONE DEFINIZIOE DEI TIPI
+    ---------------------------------------------------------------------------        
+     
     TYPE t_premio_rec IS RECORD
     ( 
         cavallo_id      NUMBER,
@@ -11,6 +15,96 @@ AS
     );
 
     TYPE t_tabella_premi IS TABLE OF t_premio_rec;
+
+TYPE t_lista_posizioni IS TABLE OF NUMBER
+        INDEX BY PLS_INTEGER;
+
+    -- Record per singolo cavallo in classifica
+    TYPE T_CLASSIFICA_ELEMENT IS RECORD
+    (
+        ID_CAVALLO    NUMBER,
+        POSIZIONE     NUMBER,
+        PUNTEGGIO     NUMBER,
+        VINCITE_FISE  NUMBER,
+        POSIZIONE_FISE NUMBER
+    );
+
+    -- Tabella indicizzata per la classifica completa
+    TYPE T_CLASSIFICA IS TABLE OF T_CLASSIFICA_ELEMENT
+        INDEX BY PLS_INTEGER;
+
+    -- Record con fascia e premio assegnati
+    TYPE T_PREMIO_ELEMENT IS RECORD
+    (
+        ID_CAVALLO    NUMBER,
+        PREMIO        NUMBER,
+        FASCIA        NUMBER
+    );
+
+    -- Mappatura finale dei premi
+    TYPE T_MAPPATURA_PREMI IS TABLE OF T_PREMIO_ELEMENT
+        INDEX BY PLS_INTEGER;
+
+ TYPE tc_dati_gara_esterna_obj IS RECORD
+    (
+        fk_sequ_id_dati_ediz_esterna      NUMBER (12),
+        sequ_id_dati_gara_esterna         NUMBER (12),
+        fk_sequ_id_gara_manifestazioni    NUMBER (12),
+        codi_gara_esterna                 VARCHAR2 (10),
+        desc_nome_gara_esterna            VARCHAR2 (100),
+        data_gara_esterna                 CHAR (8),
+        desc_gruppo_categoria             VARCHAR2 (50),
+        desc_codice_categoria             VARCHAR2 (50),
+        desc_altezza_ostacoli             VARCHAR2 (50),
+        flag_gran_premio                  NUMBER (1),
+        codi_utente_inserimento           VARCHAR2 (20),
+        dttm_inserimento                  DATE,
+        codi_utente_aggiornamento         VARCHAR2 (20),
+        dttm_aggiornamento                DATE,
+        flag_prova_a_squadre              NUMBER (1),
+        nume_mance                        NUMBER (2),
+        codi_prontuario                   VARCHAR2 (50),
+        nume_cavalli_italiani             VARCHAR2 (5),
+        desc_formula                      VARCHAR2 (50),
+        data_dressage                     VARCHAR2 (8),
+        data_cross                        VARCHAR2 (8),
+        fk_codi_categoria                 NUMBER,
+        fk_codi_tipo_classifica           NUMBER,
+        fk_codi_livello_cavallo           NUMBER,
+        fk_codi_tipo_evento               NUMBER,
+        fk_codi_tipo_prova                NUMBER,
+        fk_codi_regola_sesso              NUMBER,
+        fk_codi_regola_libro              NUMBER,
+        fk_codi_eta                       NUMBER,
+        flag_premio_masaf                 NUMBER (1)
+    );
+
+   
+    TYPE t_lista_cavalli IS TABLE OF NUMBER
+        INDEX BY BINARY_INTEGER;
+
+    f1_ids   t_lista_cavalli;
+    f2_ids   t_lista_cavalli;
+    f3_ids   t_lista_cavalli;
+
+       
+ TYPE t_endurance_row IS RECORD (
+  cavallo_id            NUMBER,
+  anno_nascita          NUMBER,
+  categoria             VARCHAR2(10),
+  num_partecipazioni    NUMBER,
+  totale_punti          NUMBER,
+  esito_controlli       NUMBER,
+  esito_partecipazione  NUMBER
+);
+
+TYPE t_endurance_tab IS TABLE OF t_endurance_row;
+
+    ---------------------------------------------------------------------------
+    -- FINE SEZIONE DEFINIZIOE DEI TIPI
+    ---------------------------------------------------------------------------        
+     
+
 
 
 
@@ -67,35 +161,7 @@ AS
                                            num_con_parimerito   IN NUMBER,
                                            montepremi           IN NUMBER)
         RETURN NUMBER;
-    TYPE t_lista_posizioni IS TABLE OF NUMBER
-        INDEX BY PLS_INTEGER;
-
-    -- Record per singolo cavallo in classifica
-    TYPE T_CLASSIFICA_ELEMENT IS RECORD
-    (
-        ID_CAVALLO    NUMBER,
-        POSIZIONE     NUMBER,
-        PUNTEGGIO     NUMBER,
-        VINCITE_FISE  NUMBER,
-        POSIZIONE_FISE NUMBER
-    );
-
-    -- Tabella indicizzata per la classifica completa
-    TYPE T_CLASSIFICA IS TABLE OF T_CLASSIFICA_ELEMENT
-        INDEX BY PLS_INTEGER;
-
-    -- Record con fascia e premio assegnati
-    TYPE T_PREMIO_ELEMENT IS RECORD
-    (
-        ID_CAVALLO    NUMBER,
-        PREMIO        NUMBER,
-        FASCIA        NUMBER
-    );
-
-    -- Mappatura finale dei premi
-    TYPE T_MAPPATURA_PREMI IS TABLE OF T_PREMIO_ELEMENT
-        INDEX BY PLS_INTEGER;
-
+    
     PROCEDURE CALCOLA_FASCE_PREMIABILI_MASAF (
         p_classifica    IN     t_classifica,
         p_montepremi    IN     NUMBER,
@@ -149,44 +215,7 @@ AS
     FUNCTION FN_INFO_GARA_ESTERNA (p_gara_id IN NUMBER)
         RETURN tc_dati_gara_esterna%ROWTYPE;
 
-    TYPE tc_dati_gara_esterna_obj IS RECORD
-    (
-        fk_sequ_id_dati_ediz_esterna      NUMBER (12),
-        sequ_id_dati_gara_esterna         NUMBER (12),
-        fk_sequ_id_gara_manifestazioni    NUMBER (12),
-        codi_gara_esterna                 VARCHAR2 (10),
-        desc_nome_gara_esterna            VARCHAR2 (100),
-        data_gara_esterna                 CHAR (8),
-        desc_gruppo_categoria             VARCHAR2 (50),
-        desc_codice_categoria             VARCHAR2 (50),
-        desc_altezza_ostacoli             VARCHAR2 (50),
-        flag_gran_premio                  NUMBER (1),
-        codi_utente_inserimento           VARCHAR2 (20),
-        dttm_inserimento                  DATE,
-        codi_utente_aggiornamento         VARCHAR2 (20),
-        dttm_aggiornamento                DATE,
-        flag_prova_a_squadre              NUMBER (1),
-        nume_mance                        NUMBER (2),
-        codi_prontuario                   VARCHAR2 (50),
-        nume_cavalli_italiani             VARCHAR2 (5),
-        desc_formula                      VARCHAR2 (50),
-        data_dressage                     VARCHAR2 (8),
-        data_cross                        VARCHAR2 (8),
-        fk_codi_categoria                 NUMBER,
-        fk_codi_tipo_classifica           NUMBER,
-        fk_codi_livello_cavallo           NUMBER,
-        fk_codi_tipo_evento               NUMBER,
-        fk_codi_tipo_prova                NUMBER,
-        fk_codi_regola_sesso              NUMBER,
-        fk_codi_regola_libro              NUMBER,
-        fk_codi_eta                       NUMBER,
-        flag_premio_masaf                 NUMBER (1)
-    );
-
-    -- TYPE tc_dati_gara_esterna_tbl
-    --     IS TABLE OF UNIRE_REL2.TC_DATI_GARA_ESTERNA%ROWTYPE;
-
-
+   
     FUNCTION FN_PERIODO_SALTO_OSTACOLI (p_data_gara VARCHAR2)
         RETURN NUMBER;
 
@@ -248,18 +277,10 @@ AS
                                   p_forza_elabora   IN     NUMBER,
                                   p_risultato          OUT VARCHAR2);
 
-    --p_risultati OUT t_tabella_premi);
-
+   
     -- Procedura per l'elaborazione dei premi FOALS per un intero anno.
     -- Gestisce la logica per l'accorpamento delle classifiche se necessario.
     PROCEDURE ELABORA_PREMI_FOALS_PER_ANNO (v_anno IN VARCHAR2);
-
-    TYPE t_lista_cavalli IS TABLE OF NUMBER
-        INDEX BY BINARY_INTEGER;
-
-    f1_ids   t_lista_cavalli;
-    f2_ids   t_lista_cavalli;
-    f3_ids   t_lista_cavalli;
 
 
     -- Procedure di calcolo premio per cavallo (per disciplina e anno)
@@ -317,7 +338,7 @@ AS
         
  -------------------------------------------------------------------------------
  -------------------------------------------------------------------------------
- --     Procedure per le premi aggiunti o incentivi 
+ --     Procedure per premi aggiunti o incentivi 
  -------------------------------------------------------------------------------
  -------------------------------------------------------------------------------
       
@@ -330,49 +351,180 @@ AS
     p_anno         IN NUMBER,
     p_risultato    OUT VARCHAR2
 );
- -------------------------------------------------------------------------------
- -------------------------------------------------------------------------------
- --     Procedure per le classifiche di accesso alle finali 
- -------------------------------------------------------------------------------
- -------------------------------------------------------------------------------
---     TYPE t_premio_rec IS RECORD
---    (
---        cavallo_id      NUMBER,
---        nome_cavallo    VARCHAR2 (100),
---        premio          NUMBER,
---        posizione       NUMBER,
---        note            VARCHAR2 (500)
---    );
---
---    TYPE t_tabella_premi IS TABLE OF t_premio_rec;
---
---
---
---    -- Restituisce una tabella premi per una gara specifica,
---    -- determinando automaticamente la disciplina e richiamando l'handler corretto.
---    FUNCTION FN_CALCOLO_PREMI_MANIFEST (p_gara_id IN NUMBER)
---        RETURN t_tabella_premi
---        PIPELINED;
-        
-        
- TYPE t_endurance_row IS RECORD (
-  cavallo_id            NUMBER,
-  anno_nascita          NUMBER,
-  categoria             VARCHAR2(10),
-  num_partecipazioni    NUMBER,
-  totale_punti          NUMBER,
-  esito_controlli       NUMBER,
-  esito_partecipazione  NUMBER
-);
-
-TYPE t_endurance_tab IS TABLE OF t_endurance_row;
-
+ 
+ 
 FUNCTION get_endurance_classifica(
   p_anno IN NUMBER
 ) RETURN t_endurance_tab PIPELINED;
         
         
+---------------------------------------------------------------------------
+    -- SEZIONE PARAMETRI CONFIGURABILI PER ANNO
+    ---------------------------------------------------------------------------
+    -- Questa sezione contiene tutti i parametri che possono cambiare
+    -- annualmente secondo il disciplinare MASAF
+    ---------------------------------------------------------------------------
+
+    ---------------------------------------------------------------------------
+    -- ANNO 2025 - PARAMETRI SALTO OSTACOLI
+    ---------------------------------------------------------------------------
+
+    -- CSIO ROMA - MASTER TALENT PIAZZA DI SIENA
+    C_2025_SO_CSIO_7_FINALE        CONSTANT NUMBER := 5000;
+    C_2025_SO_CSIO_7_PROVA         CONSTANT NUMBER := 3500;
+    C_2025_SO_CSIO_6_FINALE        CONSTANT NUMBER := 4000;
+    C_2025_SO_CSIO_6_PROVA         CONSTANT NUMBER := 2000;
+
+    -- FINALE CIRCUITO CLASSICO - CRITERIUM
+    C_2025_SO_CC_CRIT_4_FINALE     CONSTANT NUMBER := 3700;
+    C_2025_SO_CC_CRIT_4_PROVA      CONSTANT NUMBER := 1300;
+    C_2025_SO_CC_CRIT_5_FINALE     CONSTANT NUMBER := 3700;
+    C_2025_SO_CC_CRIT_5_PROVA      CONSTANT NUMBER := 1300;
+    C_2025_SO_CC_CRIT_67_FINALE    CONSTANT NUMBER := 3800;
+    C_2025_SO_CC_CRIT_67_PROVA     CONSTANT NUMBER := 1300;
+    C_2025_SO_CC_CRIT_7P_FINALE CONSTANT NUMBER := 3700;  -- 7+ anni
+    C_2025_SO_CC_CRIT_7P_PROVA  CONSTANT NUMBER := 1300;  -- 7+ anni
+    C_2025_SO_CC_CRIT_8_FINALE     CONSTANT NUMBER := 4000;
+    C_2025_SO_CC_CRIT_8_PROVA      CONSTANT NUMBER := 2000;
+
+    -- FINALE CIRCUITO CLASSICO - CAMPIONATO
+    C_2025_SO_CC_CAMP_4_FINALE     CONSTANT NUMBER := 20000;
+    C_2025_SO_CC_CAMP_4_PROVA      CONSTANT NUMBER := 10000;
+    C_2025_SO_CC_CAMP_5_FINALE     CONSTANT NUMBER := 20000;
+    C_2025_SO_CC_CAMP_5_PROVA      CONSTANT NUMBER := 12000;
+    C_2025_SO_CC_CAMP_67_FINALE    CONSTANT NUMBER := 24000;
+    C_2025_SO_CC_CAMP_67_PROVA     CONSTANT NUMBER := 8000;
+    C_2025_SO_CC_CAMP_8_FINALE     CONSTANT NUMBER := 20000;
+    C_2025_SO_CC_CAMP_8_PROVA      CONSTANT NUMBER := 8000;
+    C_2025_SO_CC_CAMP_8_PROVA3     CONSTANT NUMBER := 10000;
+
+    -- CATEGORIA SPORT
+    C_2025_SO_SPORT_EURO_PART      CONSTANT NUMBER := 50;
+    C_2025_SO_SPORT_MIN_PART       CONSTANT NUMBER := 6;
+
+    -- CATEGORIA BREVETTO (7+ anni)
+    C_2025_SO_BREVETTO_EURO_PART   CONSTANT NUMBER := 50;
+    C_2025_SO_BREVETTO_MIN_PART    CONSTANT NUMBER := 6;
+
+    -- CATEGORIA SELEZIONE - Montepremi fissi per età e giornata
+    C_2025_SO_SEL_5_G1             CONSTANT NUMBER := 2000;
+    C_2025_SO_SEL_5_G2             CONSTANT NUMBER := 2000;
+    C_2025_SO_SEL_5_G3             CONSTANT NUMBER := 3500;
+    C_2025_SO_SEL_6_G1             CONSTANT NUMBER := 2500;
+    C_2025_SO_SEL_6_G2             CONSTANT NUMBER := 2500;
+    C_2025_SO_SEL_6_G3             CONSTANT NUMBER := 4000;
+    C_2025_SO_SEL_7_G1             CONSTANT NUMBER := 3000;
+    C_2025_SO_SEL_7_G2             CONSTANT NUMBER := 3000;
+    C_2025_SO_SEL_7_G3             CONSTANT NUMBER := 4500;
+
+    -- CATEGORIA ELITE/ALTO - Euro per partente per età e periodo
+    C_2025_SO_ELITE_4_P1           CONSTANT NUMBER := 135;
+    C_2025_SO_ELITE_4_P2           CONSTANT NUMBER := 150;
+    C_2025_SO_ELITE_5_P1           CONSTANT NUMBER := 135;
+    C_2025_SO_ELITE_5_P2           CONSTANT NUMBER := 150;
+    C_2025_SO_ELITE_MIN_PART       CONSTANT NUMBER := 6;
+
+    -- CATEGORIA ELITE/ALTO 6 ANNI - Periodo 1
+    C_2025_SO_ELITE_6_P1_G1_PART   CONSTANT NUMBER := 150;
+    C_2025_SO_ELITE_6_P1_G2        CONSTANT NUMBER := 2400;
+    C_2025_SO_ELITE_6_P1_G3        CONSTANT NUMBER := 3500;
+    -- CATEGORIA ELITE/ALTO 6 ANNI - Periodo 2
+    C_2025_SO_ELITE_6_P2_G2        CONSTANT NUMBER := 2900;
+    C_2025_SO_ELITE_6_P2_G3        CONSTANT NUMBER := 4400;
+
+    -- CATEGORIA ELITE/ALTO 7 ANNI - Periodo 1
+    C_2025_SO_ELITE_7_P1_G3        CONSTANT NUMBER := 3800;
+    C_2025_SO_ELITE_7_P1_G12       CONSTANT NUMBER := 2700;
+    -- CATEGORIA ELITE/ALTO 7 ANNI - Periodo 2
+    C_2025_SO_ELITE_7_P2_G3        CONSTANT NUMBER := 5000;
+    C_2025_SO_ELITE_7_P2_G12       CONSTANT NUMBER := 3300;
+
+    -- CAMPIONATO MONDO GIOVANI CAVALLI (LANAKEN)
+    C_2025_SO_LANAKEN_CONTRIB      CONSTANT NUMBER := 2000;
+    C_2025_SO_LANAKEN_FINALE_1     CONSTANT NUMBER := 6000;
+    C_2025_SO_LANAKEN_FINALE_2_5   CONSTANT NUMBER := 3600;
+    C_2025_SO_LANAKEN_FINALE_6_10  CONSTANT NUMBER := 2400;
+    C_2025_SO_LNKN_FIN_OLTRE CONSTANT NUMBER := 2000;  -- Lanaken oltre 10°
+    C_2025_SO_LANAKEN_QUAL_1       CONSTANT NUMBER := 1000;
+    C_2025_SO_LANAKEN_QUAL_2_5     CONSTANT NUMBER := 600;
+    C_2025_SO_LANAKEN_QUAL_6_10    CONSTANT NUMBER := 400;
+
+    -- PERCENTUALI SPLIT GIUDIZIO/PRECISIONE
+    C_2025_SO_PERC_SPORT_GIU       CONSTANT NUMBER := 1.0;   -- 100%
+    C_2025_SO_PERC_SPORT_PREC      CONSTANT NUMBER := 0.0;   -- 0%
+    C_2025_SO_PERC_ELITE4_GIU      CONSTANT NUMBER := 0.5;   -- 50%
+    C_2025_SO_PERC_ELITE4_PREC     CONSTANT NUMBER := 0.5;   -- 50%
+    C_2025_SO_PERC_ELITE5_GIU      CONSTANT NUMBER := 0.4;   -- 40%
+    C_2025_SO_PERC_ELITE5_PREC     CONSTANT NUMBER := 0.6;   -- 60%
+
+    -- INCENTIVO 10% FISE
+    C_2025_SO_INCENTIVO_FISE_PERC  CONSTANT NUMBER := 0.1;   -- 10%
+
+    -- PERCENTUALI DISTRIBUZIONE MASAF (uguali per tutti gli anni)
+    C_MASAF_FASCIA_1_PERC          CONSTANT NUMBER := 0.5;   -- 50%
+    C_MASAF_FASCIA_2_PERC          CONSTANT NUMBER := 0.3;   -- 30%
+    C_MASAF_FASCIA_3_PERC          CONSTANT NUMBER := 0.2;   -- 20%
+
+    ---------------------------------------------------------------------------
+    -- ANNO 2026 - PARAMETRI SALTO OSTACOLI
+    -- TODO: Popolare quando disponibili i nuovi valori del disciplinare 2026
+    ---------------------------------------------------------------------------
+    C_2026_SO_CSIO_7_FINALE        CONSTANT NUMBER := 5000;  -- DA AGGIORNARE
+    C_2026_SO_CSIO_7_PROVA         CONSTANT NUMBER := 3500;  -- DA AGGIORNARE
+    C_2026_SO_CSIO_6_FINALE        CONSTANT NUMBER := 4000;  -- DA AGGIORNARE
+    C_2026_SO_CSIO_6_PROVA         CONSTANT NUMBER := 2000;  -- DA AGGIORNARE
+    -- ... altri parametri 2026 da aggiungere quando disponibili
+
+
+
+
+
+
+    ---------------------------------------------------------------------------
+    -- COSTANTI DI SISTEMA E LOGICA (NO MAGIC STRINGS)
+    ---------------------------------------------------------------------------
+    
+    -- Tipi Distribuzione
+    C_DISTRIB_FISE                 CONSTANT VARCHAR2(10) := 'FISE';
+    C_DISTRIB_MASAF                CONSTANT VARCHAR2(10) := 'MASAF';
+    
+    -- Categorie Gara
+    C_CAT_ELITE                    CONSTANT VARCHAR2(10) := 'ELITE';
+    C_CAT_ALTO                     CONSTANT VARCHAR2(10) := 'ALTO';
+    C_CAT_SPORT                    CONSTANT VARCHAR2(10) := 'SPORT';
+    
+    -- Pattern Ricerca Manifestazioni/Gare (LIKE)
+    C_PAT_CSIO_ROMA                CONSTANT VARCHAR2(50) := '%CSIO%ROMA%MASTER%';
+    C_PAT_FINALE_CLASSICO          CONSTANT VARCHAR2(50) := '%FINALE%CIRCUITO%CLASSICO%';
+    C_PAT_CRITERIUM                CONSTANT VARCHAR2(20) := '%CRITERIUM%';
+    C_PAT_MONDIALI                 CONSTANT VARCHAR2(30) := '%CAMPIONATO%MONDO%';
+    C_PAT_LANAKEN_START            CONSTANT VARCHAR2(30) := 'CAMPIONATO%MONDO%GIOVANI%'; -- Inizia con
+    
+    -- Pattern Specifici Gare
+    C_PAT_MISTA                    CONSTANT VARCHAR2(10) := 'MISTA';
+    C_PAT_FASI_CONS                CONSTANT VARCHAR2(20) := 'FASI CONS';
+    C_PAT_CONTRIBUTO               CONSTANT VARCHAR2(20) := '%CONTRIBUTO%';
+    C_PAT_FINALE                   CONSTANT VARCHAR2(20) := '%FINALE%';
+    C_PAT_CONSOLAZIONE             CONSTANT VARCHAR2(20) := '%CONSOLAZIONE%';
+
+    -- Formule
+    C_FORMULA_FISE                 CONSTANT VARCHAR2(10) := 'FISE';
+    
+    ---------------------------------------------------------------------------
+    -- FINE SEZIONE PARAMETRI CONFIGURABILI
+    ---------------------------------------------------------------------------        
         
-        
+    
+    
+    ---------------------------------------------------------------------------
+    -- INIZIO MIGRAZIONE A PACKAGE PLURI ANNO
+    ---------------------------------------------------------------------------        
+    
+    FUNCTION handler_salto_ostacoli_v2 (
+    p_gara_id       IN NUMBER,
+    p_anno          IN NUMBER DEFAULT 2025,
+    p_modalita_test IN BOOLEAN DEFAULT FALSE
+) RETURN t_tabella_premi;
+    
 END PKG_CALCOLI_PREMI_MANIFEST;
 /
