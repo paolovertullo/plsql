@@ -5,7 +5,7 @@ as
     -- 
     --
     -- TODO: Dressage, Monta da lavoro, Endurance fare test approfonditi di distribuzione premi.
-    -- TODO: Tutte le simulazioni sono vuote attualmente perchè le firma dei calcola sono tutte cambiate.
+    -- TODO: Tutte le simulazioni sono vuote attualmente perchï¿½ le firma dei calcola sono tutte cambiate.
     -- TODO: La funzione che dice se ci sono incentivi va rivista profondamente.
 
     c_debug        constant boolean := false;
@@ -21,11 +21,11 @@ as
         v_dummy       number;
         v_rec         unire_rel2.pkg_calcoli_premi_manifest.t_premio_rec;
     begin
-        -- Questo metodo è richiamato come API dal BackEnd  NON PUO FARE UPDATE
+        -- Questo metodo ï¿½ richiamato come API dal BackEnd  NON PUO FARE UPDATE
 
         --   inserisco la logica che se non ci sono i risultati in nume_piazzamento allora restituisco la SIM
-        --         se ci sono prendo piazzamento e il dato premio_masaf se è valorizzato
-        --        se non è valorizzato allora due strade o chiamo il popola premio_masaf oppure lo calcolo con handler
+        --         se ci sono prendo piazzamento e il dato premio_masaf se ï¿½ valorizzato
+        --        se non ï¿½ valorizzato allora due strade o chiamo il popola premio_masaf oppure lo calcolo con handler
         -- Prova a selezionare se esiste almeno un NUME_PIAZZAMENTO NULL
 
         v_dummy := fn_gara_premiata_masaf (p_gara_id);
@@ -56,7 +56,7 @@ as
                    and rownum = 1;
 
             -- Se trovi almeno un risultato a null, fai vedere la simulazione
-            --perchè classifica non ultimata
+            --perchï¿½ classifica non ultimata
             for rec
                 in (select *
                       from table (
@@ -125,12 +125,12 @@ as
         --  l_risultati    t_tabella_premi := t_tabella_premi ();
         v_disciplina   varchar2 (50);
     begin
-        -- Questo metodo è richiamato come API dal BackEnd
+        -- Questo metodo ï¿½ richiamato come API dal BackEnd
 
         -- Recupero la disciplina della gara
         v_disciplina := get_disciplina (p_gara_id);
 
-        -- Dispatch verso l¿handler della disciplina corretta
+        -- Dispatch verso lï¿½handler della disciplina corretta
         case v_disciplina
             when 4
             then
@@ -231,7 +231,7 @@ as
         v_nome_gara               tc_dati_gara_esterna.desc_nome_gara_esterna%type; -- Usiamo direttamente il campo della vista
         v_nome_manifestazione     varchar2 (255);
         v_nome_edizione     varchar2 (255);
-        l_eta_cavalli             number;                -- Per l'età numerica
+        l_eta_cavalli             number;                -- Per l'etï¿½ numerica
         l_desc_formula            varchar2 (50);
         v_formula                 varchar2 (50);    -- valore della formula nel file access
         l_debug_disciplina_desc   varchar2 (100);
@@ -278,12 +278,12 @@ as
                 case
                     when instr (upper (v_dati_gara.desc_nome_gara_esterna),
                                 '1 ANNO') >
-                         0                   -- Aggiunto prima per specificità
+                         0                   -- Aggiunto prima per specificitï¿½
                     then
                         1
                     when instr (upper (v_dati_gara.desc_nome_gara_esterna),
                                 '2 ANNI') >
-                         0                   -- Aggiunto prima per specificità
+                         0                   -- Aggiunto prima per specificitï¿½
                     then
                         2
                     when instr (upper (v_dati_gara.desc_nome_gara_esterna),
@@ -462,8 +462,8 @@ as
                 v_nome_gara := upper (trim (v_nome_gara));
 
                 -- REGOLA 1: MANIFESTAZIONI "CAMPIONATO 6 ANNI DI COMPLETO" e "CAMPIONATO 7 ANNI DI COMPLETO"
-                -- Queste manifestazioni sono le finali per le rispettive età e sono premiate MASAF.
-                -- Assumiamo che le gare all'interno di queste manifestazioni specifiche per quell'età siano quelle del campionato.
+                -- Queste manifestazioni sono le finali per le rispettive etï¿½ e sono premiate MASAF.
+                -- Assumiamo che le gare all'interno di queste manifestazioni specifiche per quell'etï¿½ siano quelle del campionato.
                 if v_nome_manifestazione like '%CAMPIONATO%ANNI%'
                 then
                         if v_nome_gara like '%CAMPIONATO%MASAF%ANNI%' 
@@ -490,17 +490,17 @@ as
                 if     l_premiata = 0
                    and v_nome_manifestazione = 'TROFEO DEL CAVALLO ITALIANO'
                 then
-                    -- Il montepremi MASAF è per la *Finale* del Trofeo (pag. 12).
-                    -- Non sono specificate categorie di età o livello per il premio della finale del Trofeo,
+                    -- Il montepremi MASAF ï¿½ per la *Finale* del Trofeo (pag. 12).
+                    -- Non sono specificate categorie di etï¿½ o livello per il premio della finale del Trofeo,
                     -- si presume che la gara sia la "finale" stessa.
-                    -- Se ci sono più gare in una manifestazione "TROFEO DEL CAVALLO ITALIANO",
-                    -- dovremmo identificare quale è effettivamente la "FINALE" del Trofeo.
+                    -- Se ci sono piï¿½ gare in una manifestazione "TROFEO DEL CAVALLO ITALIANO",
+                    -- dovremmo identificare quale ï¿½ effettivamente la "FINALE" del Trofeo.
                     -- Per ora, se la manifestazione ha questo nome, assumiamo che la gara sia la finale premiata.
                     -- Un controllo su v_nome_gara LIKE '%FINALE%' potrebbe essere utile se non tutte le gare
                     -- di questa manifestazione sono la finale.
                     if    v_nome_gara like '%FINALE%'
                        or v_nome_gara like '%TROFEO%'
-                    then       -- Aggiunto per essere più specifici sulla gara
+                    then       -- Aggiunto per essere piï¿½ specifici sulla gara
                         l_premiata := 1;
                     end if;
                 end if;
@@ -510,11 +510,11 @@ as
                    and v_nome_manifestazione = 'CIRCUITO MASAF COMPLETO'
                 then
                     -- Le tappe del circuito sono per cavalli di 4 e 5 anni (pag. 7 disciplinare)
-                    -- e "ogni categoria avrà un Montepremi".
+                    -- e "ogni categoria avrï¿½ un Montepremi".
                     if l_eta_cavalli in (4, 5) or v_nome_gara like 'MASAF%'
                     then
-                        -- Non c'è distinzione sport/élite per il premio di tappa nel disciplinare a pag. 7.
-                        -- Quindi, se l'età è 4 o 5, è una tappa premiata.
+                        -- Non c'ï¿½ distinzione sport/ï¿½lite per il premio di tappa nel disciplinare a pag. 7.
+                        -- Quindi, se l'etï¿½ ï¿½ 4 o 5, ï¿½ una tappa premiata.
                         l_premiata := 1;
                     end if;
                 end if;
@@ -522,7 +522,7 @@ as
                 -- REGOLA 5: MANIFESTAZIONE "CAMPIONATO DEL MONDO"
                 if v_nome_manifestazione like 'CAMPIONATO%DEL%MONDO%'
                 then
-                    l_premiata := 1; --sempre premiate perchè inserisco nel file csv solo quelle a premio
+                    l_premiata := 1; --sempre premiate perchï¿½ inserisco nel file csv solo quelle a premio
                 end if;
 
                 if v_nome_gara like '%FISE%'
@@ -626,7 +626,7 @@ as
                 end if;
 
 
-                -- REGOLA 3: CSIO Roma / Piazza di Siena ¿ Master Talent 6-7 anni
+                -- REGOLA 3: CSIO Roma / Piazza di Siena ï¿½ Master Talent 6-7 anni
                 if     l_premiata = 0
                    and (   upper (v_nome_manifestazione) like '%CSIO ROMA%'
                         or upper (v_nome_manifestazione) like
@@ -662,7 +662,7 @@ as
                 end if;
 
                 -- IMPLEMENTO l'USO DELLA TIPOLOGICA DELLA FISE NEL FILE ACCESS
-                -- REGOLA 6: ESCLUDI LE GARE CHE HANNO FORMULA 'AGGI'  perchè nel file access sono le gare aggiunte non da premiare
+                -- REGOLA 6: ESCLUDI LE GARE CHE HANNO FORMULA 'AGGI'  perchï¿½ nel file access sono le gare aggiunte non da premiare
                 if  v_formula = 'AGGI'
                 then
                         l_premiata := 0;
@@ -699,14 +699,14 @@ as
                         if v_nome_gara like '%MASAF%' then
                             l_premiata := 1;
                         end if;
-                        --5 ANNI FINAL MASAF 2° GIORNATA che in realtà è in giornata 2 di tre quindi sarebbe prima giornata
+                        --5 ANNI FINAL MASAF 2ï¿½ GIORNATA che in realtï¿½ ï¿½ in giornata 2 di tre quindi sarebbe prima giornata
                     elsif v_nome_manifest_norm like '%MASAF%DRESSAGE%' and v_nome_gara like '%FINAL%MASAF%' then
                         l_premiata := 1;
                     end if;
                     
                     -- REGOLA : nel caso nel nome ci sia indicata la gioranta posso usare quella come informazione
                     if     l_premiata = 0
-                        and upper (v_nome_gara) like  '%MASAF%2°%'
+                        and upper (v_nome_gara) like  '%MASAF%2ï¿½%'
                     then
                             l_premiata := 1;
                     end if;
@@ -739,15 +739,15 @@ as
                     v_nome_manifest_normalizzato   varchar2 (255)
                         := upper (trim (v_nome_manifestazione));
                     v_nome_gara_normalizzato       varchar2 (255)
-                                                       := v_nome_gara; -- v_nome_gara è già UPPER nella procedura principale
+                                                       := v_nome_gara; -- v_nome_gara ï¿½ giï¿½ UPPER nella procedura principale
                 begin
-                    -- Controlla se la manifestazione è una Tappa o la Finale del Circuito Monta da Lavoro
+                    -- Controlla se la manifestazione ï¿½ una Tappa o la Finale del Circuito Monta da Lavoro
                     if    v_nome_manifest_normalizzato =
                           'CIRCUITO MONTA DA LAVORO'
                        or v_nome_manifest_normalizzato =
                           'FINALE CIRCUITO MONTA DA LAVORO'
                     then
-                        -- Ora controlla se la categoria della gara è una di quelle premiate MASAF
+                        -- Ora controlla se la categoria della gara ï¿½ una di quelle premiate MASAF
                         -- Utilizziamo i nomi che hai fornito e li mappiamo alle categorie del disciplinare
                         if    v_nome_gara_normalizzato like '%ESORDIENTI%'
                            or v_nome_gara_normalizzato = 'CATEGORIA 1'
@@ -782,7 +782,7 @@ as
         
         if upper (l_desc_formula) like '%FISE%'
         then
-            l_premiata := 0; --Non premiate perchè sono le manifestazioni FISE
+            l_premiata := 0; --Non premiate perchï¿½ sono le manifestazioni FISE
             
             -- CASO IN CUI LA GARA E' un INCENTIVO MASAF in GARA FISE
         
@@ -876,10 +876,10 @@ as
             end if;
 
            
-            -- Determina se la gara è all'estero
+            -- Determina se la gara ï¿½ all'estero
             -- Ipotizziamo che il nome della manifestazione o un campo specifico lo indichi
             if    instr (v_nome_manifest_upper, 'ESTERO') > 0
-               or instr (v_nome_manifest_upper, 'OPGLABBEEK') > 0 -- Aggiungere pattern per località estere
+               or instr (v_nome_manifest_upper, 'OPGLABBEEK') > 0 -- Aggiungere pattern per localitï¿½ estere
             -- OR v_dati_gara.NAZIONE_EVENTO != 'ITA' -- Se hai un campo nazione
             then
                 v_is_estero := true;
@@ -906,13 +906,13 @@ as
                 l_tipo_incentivo_gara := 2; -- Tipo incentivo: 10% del premio vinto
             when 7
             then                                     -- MONTA DA LAVORO (ID 7)
-                l_tipo_incentivo_gara := 0; -- Il programma MASAF è il suo circuito. Nessun incentivo AGGIUNTO a gare FITETREC generiche.
+                l_tipo_incentivo_gara := 0; -- Il programma MASAF ï¿½ il suo circuito. Nessun incentivo AGGIUNTO a gare FITETREC generiche.
             when 2
             then                                           -- ENDURANCE (ID 2)
                 l_tipo_incentivo_gara := 0; -- Nessun incentivo specifico menzionato per gare FISE generiche
             when 1
             then                              -- CIRCUITO ALLEVATORIALE (ID 1)
-                l_tipo_incentivo_gara := 0;                  -- Gare già MASAF
+                l_tipo_incentivo_gara := 0;                  -- Gare giï¿½ MASAF
             else
                 l_tipo_incentivo_gara := 0; 
         end case;
@@ -944,7 +944,7 @@ as
 --                  dbms_output.put_line (  'v_is_estero TRUE'); else dbms_output.put_line (  'v_is_estero FALSE');end if;
 --           end if;
             
-        -- 4. Se la GARA è di un tipo idoneo a incentivi, conta i cavalli MASAF partecipanti
+        -- 4. Se la GARA ï¿½ di un tipo idoneo a incentivi, conta i cavalli MASAF partecipanti
         -- controlla anche se ci sono premi FISE altrimenti non contano
         if l_tipo_incentivo_gara > 0
         then
@@ -955,7 +955,7 @@ as
                  where     cl.fk_sequ_id_dati_gara_esterna =
                            p_id_gara_esterna
                        and cl.fk_sequ_id_cavallo is not null
-                       and (vincite_fise > 0 or vincite_masaf > 0 ); -- Cavallo è MASAF e ci sono vincite FISE
+                       and (vincite_fise > 0 or vincite_masaf > 0 ); -- Cavallo ï¿½ MASAF e ci sono vincite FISE
             exception
                 when no_data_found
                 then
@@ -1131,7 +1131,7 @@ as
             or (idx >= 34 and posizione > 10))
         then
             --      IF c_debug THEN
-            --         DBMS_OUTPUT.PUT_LINE('Posizione fuori da premiabili ¿ ritorna 0');
+            --         DBMS_OUTPUT.PUT_LINE('Posizione fuori da premiabili ï¿½ ritorna 0');
             --      END IF;
             return 0;
         end if;
@@ -1473,7 +1473,7 @@ begin
     while idx is not null loop
         if ids(idx) = id then 
           --  if c_debug then
-          --      dbms_output.put_line('>> Cavallo ' || id || ' già presente nella fascia, non riaggiunto.');
+          --      dbms_output.put_line('>> Cavallo ' || id || ' giï¿½ presente nella fascia, non riaggiunto.');
           --  end if;
             return;
         end if;
@@ -1551,7 +1551,7 @@ if p_priorita_fasce_alte  then
     
     if p_premiabili < 3 then
         -- CASO SPECIALE (1 o 2 premiati): Riempi dall'alto (F1, F2)
-        -- Questa è la logica originale "Allevatoriale", che per p < 3 
+        -- Questa ï¿½ la logica originale "Allevatoriale", che per p < 3 
         -- assegna correttamente a F1 e F2.
         -- p=1 -> (F1=1, F2=0, F3=0)
         -- p=2 -> (F1=1, F2=1, F3=0)
@@ -1940,7 +1940,7 @@ end;
             dbms_output.put_line (RPAD('-', 80, '-'));
             dbms_output.put_line ('   Nome gara     : ' || p_dati_gara.desc_nome_gara_esterna);
             dbms_output.put_line ('   Categoria     : ' || v_categoria);
-            dbms_output.put_line ('   Età cavallo   : ' || v_eta);
+            dbms_output.put_line ('   Etï¿½ cavallo   : ' || v_eta);
             dbms_output.put_line ('   Tipo gara     : ' || NVL(v_tipo_gara, 'N/A'));
             dbms_output.put_line ('   Partenti      : ' || p_num_part);
             dbms_output.put_line (RPAD('-', 80, '-'));
@@ -1953,7 +1953,7 @@ end;
             if v_eta = 7 then
                 if instr(upper(p_dati_gara.desc_nome_gara_esterna), 'FINALE') > 0 then
                     p_montepremi := 5000;
-                else -- 1° e 2° prova
+                else -- 1ï¿½ e 2ï¿½ prova
                     p_montepremi := 3500;
                 end if;
                 p_desc_calcolo_premio := p_desc_calcolo_premio ||' montepremi fisso ';
@@ -1961,7 +1961,7 @@ end;
             elsif v_eta = 6 then
                 if instr(upper(p_dati_gara.desc_nome_gara_esterna), 'FINALE') > 0 then
                     p_montepremi := 4000;
-                else -- 1° e 2° prova
+                else -- 1ï¿½ e 2ï¿½ prova
                     p_montepremi := 2000;
                 end if;
                 p_desc_calcolo_premio := p_desc_calcolo_premio ||' montepremi fisso ';
@@ -1994,7 +1994,7 @@ end;
         -- Finali Circuito Classico MASAF - Campionati e Criterium - si ricalcolano le percentuali di split
         if v_nome_manifestazione like 'FINALE%CIRCUITO%CLASSICO%'
         then
-            -- Determino tipo gara (CRITERIUM o CAMPIONATO) e se è FINALE
+            -- Determino tipo gara (CRITERIUM o CAMPIONATO) e se ï¿½ FINALE
             v_is_criterium := instr(upper(p_dati_gara.desc_nome_gara_esterna), 'CRITERIUM') > 0;
             v_is_finale    := instr(upper(p_dati_gara.desc_nome_gara_esterna), 'FINALE') > 0;
     
@@ -2016,7 +2016,7 @@ end;
                     else 'CAMPIONATO 4 ANNI - PROVA'
                 end;
                 
-                -- Percentuali giudizio/precisione per età 4
+                -- Percentuali giudizio/precisione per etï¿½ 4
                 if v_is_criterium then
                     v_perc_giudizio := 1;
                     v_perc_precis   := 0;
@@ -2041,7 +2041,7 @@ end;
                     else 'CAMPIONATO 5 ANNI - PROVA'
                 end;
                 
-                -- Percentuali giudizio/precisione per età 5
+                -- Percentuali giudizio/precisione per etï¿½ 5
                 if v_is_criterium then
                     v_perc_giudizio := 1;
                     v_perc_precis   := 0;
@@ -2049,7 +2049,7 @@ end;
                     v_perc_giudizio := 0.4;
                     v_perc_precis   := 0.6;
                 end if;
-            elsif v_eta in (6,7) and  upper(p_dati_gara.desc_nome_gara_esterna) not like'%OLTRE%' --se BREVETTO o 1° GR allora si stratta di CRITURIUM con altri montepremi 
+            elsif v_eta in (6,7) and  upper(p_dati_gara.desc_nome_gara_esterna) not like'%OLTRE%' --se BREVETTO o 1ï¿½ GR allora si stratta di CRITURIUM con altri montepremi 
             then
                 -- Montepremi
                 if v_is_criterium then
@@ -2066,10 +2066,10 @@ end;
                     else 'CAMPIONATO 6/7 ANNI - PROVA'
                 end;
                 
-                -- Percentuali giudizio/precisione per età 6 non ci sono viene dato il 100% a quella unica gara
+                -- Percentuali giudizio/precisione per etï¿½ 6 non ci sono viene dato il 100% a quella unica gara
                 v_perc_giudizio := 1;
                 v_perc_precis   := 1;
-            elsif v_eta = 7 and upper(p_dati_gara.desc_nome_gara_esterna) like'%OLTRE%' --se BREVETTO o 1° GR allora si stratta di CRITURIUM con altri montepremi 
+            elsif v_eta = 7 and upper(p_dati_gara.desc_nome_gara_esterna) like'%OLTRE%' --se BREVETTO o 1ï¿½ GR allora si stratta di CRITURIUM con altri montepremi 
             then
                 -- Montepremi
                 p_montepremi := case when v_is_finale then 3700 else 1300 end;  -- valori criterium
@@ -2077,7 +2077,7 @@ end;
                 -- Descrizione
                 p_desc_calcolo_premio :=  'CRITERIUM 7 ANNI E OLTRE BR o 1GR';
                 
-                -- Percentuali giudizio/precisione per età 6 non ci sono viene dato il 100% a quella unica gara
+                -- Percentuali giudizio/precisione per etï¿½ 6 non ci sono viene dato il 100% a quella unica gara
                 v_perc_giudizio := 1;
                 v_perc_precis   := 1;
             
@@ -2088,7 +2088,7 @@ end;
                     p_montepremi := case when v_is_finale then 4000 else 2000 end;  -- valori criterium
                 else
                     p_montepremi := case when v_is_finale then 20000 else 8000 end; -- campionato
-                    --nel solo caso di terza prova è 10000
+                    --nel solo caso di terza prova ï¿½ 10000
                     if instr(upper(p_dati_gara.desc_nome_gara_esterna), '3')>0 then
                         p_montepremi :=10000;
                     end if;
@@ -2102,7 +2102,7 @@ end;
                     else 'CAMPIONATO 8 E OLTRE ANNI - PROVA'
                 end;
                 
-                -- Percentuali giudizio/precisione per età 6 non ci sono viene dato il 100% a quella unica gara
+                -- Percentuali giudizio/precisione per etï¿½ 6 non ci sono viene dato il 100% a quella unica gara
                 v_perc_giudizio := 1;
                 v_perc_precis   := 1;
             end if;
@@ -2238,7 +2238,7 @@ end;
         then
             dbms_output.put_line (CHR(10) || '>> CALCOLO MONTEPREMI');
             dbms_output.put_line (RPAD('-', 80, '-'));
-            dbms_output.put_line ('   Montepremi base        : ¿'|| LPAD(TO_CHAR(p_montepremi, '999990.00'), 12));
+            dbms_output.put_line ('   Montepremi base        : ï¿½'|| LPAD(TO_CHAR(p_montepremi, '999990.00'), 12));
             dbms_output.put_line ('   Num. partenti          : ' || LPAD(p_num_part, 3));
             dbms_output.put_line ('   Categoria              : ' || v_categoria);
             dbms_output.put_line ('   Periodo                : ' || p_periodo);
@@ -2316,7 +2316,7 @@ end;
             else
                 v_montepremi := 200 * v_num_part;
             end if;
-        -- SALTO IN LIBERTÀ
+        -- SALTO IN LIBERTï¿½
         elsif v_nome_gara like '%SALTO IN%'
         then
             if v_tipo_evento = 'FINALE'
@@ -2375,7 +2375,7 @@ end;
                 || v_montepremi ||
                    ' - Numero partenti :'
                 || v_num_part || ' - Tipo evento : ' || v_tipo_evento ||
-                ' Età : ' || v_eta);
+                ' Etï¿½ : ' || v_eta);
         end if;
         
         return v_montepremi;
@@ -2443,7 +2443,7 @@ end;
         if c_debug
         then
             dbms_output.put_line (
-                   '[FN_CALCOLA_MONTEPREMI_COMPLETO] Età cavallo: '
+                   '[FN_CALCOLA_MONTEPREMI_COMPLETO] Etï¿½ cavallo: '
                 || v_eta_cavallo);
             dbms_output.put_line (
                    '[FN_CALCOLA_MONTEPREMI_COMPLETO] Tipo evento: '
@@ -2457,7 +2457,7 @@ end;
             then
                 if v_eta_cavallo in (4, 5)
                 then
-                    v_montepremi_tot := 6 * 400 / 2; --metà va alla gara e metà alla progressione tecnica
+                    v_montepremi_tot := 6 * 400 / 2; --metï¿½ va alla gara e metï¿½ alla progressione tecnica
                 end if;
             when 'FINALE'
             then
@@ -2521,7 +2521,7 @@ is
     v_count number := 0;
     v_soglia_dress number;
 begin
-    -- Soglia dressage in base all'età
+    -- Soglia dressage in base all'etï¿½
     v_soglia_dress := case p_eta_cavallo 
                         when 4 then 65
                         when 5 then 62
@@ -2721,7 +2721,7 @@ begin
                    and nume_piazzamento = v_piazzamento_limite
                    and nume_piazzamento < 900;
                 
-                -- Conta quanti con quel piazzamento sono già nei premiabili
+                -- Conta quanti con quel piazzamento sono giï¿½ nei premiabili
                 select count(*)
                   into v_count_gia_dentro
                   from (select nume_piazzamento, rownum rn
@@ -2987,7 +2987,7 @@ end;
 --                end if;
 --            end loop;
 --            
---            -- Se più di uno a parimerito, estendi
+--            -- Se piï¿½ di uno a parimerito, estendi
 --            if v_count_pari > 1 then
 --                v_n_premiabili := v_n_premiabili + (v_count_pari - 1);
 --                if c_debug then
@@ -3082,7 +3082,7 @@ end;
         v_desc_nome_manifest   varchar2 (250);
         v_anno_cavallo         varchar2 (4);
     begin
-        --ATTENZIONE QUI NON CI POSSONO ESSERE DML perchè è chiamata da una funzione che restituisce una table function
+        --ATTENZIONE QUI NON CI POSSONO ESSERE DML perchï¿½ ï¿½ chiamata da una funzione che restituisce una table function
 
         -- Recupero riga dalla tabella gara_esterna
         select *
@@ -3134,7 +3134,7 @@ end;
                              0
                         then
                             75
-                        -- Alto livello: nel nome c'è "ALTO" oppure altezza elevata (>=125)
+                        -- Alto livello: nel nome c'ï¿½ "ALTO" oppure altezza elevata (>=125)
                         when instr (
                                  upper (v_dati_gara.desc_nome_gara_esterna),
                                  'ALTO') >
@@ -3145,10 +3145,10 @@ end;
                                                                    and 130
                         then
                             74
-                        -- Elite: nel nome "ÉLITE" o "GIUDIZIO", oppure codifica specifica
+                        -- Elite: nel nome "ï¿½LITE" o "GIUDIZIO", oppure codifica specifica
                         when instr (
                                  upper (v_dati_gara.desc_nome_gara_esterna),
-                                 'ÉLITE') >
+                                 'ï¿½LITE') >
                              0
                         then
                             73
@@ -3174,7 +3174,7 @@ end;
                              0
                         then
                             66
-                        -- Altezza H110/H120 da sola non implica selezione ¿ default sport
+                        -- Altezza H110/H120 da sola non implica selezione ï¿½ default sport
                         when v_dati_gara.desc_altezza_ostacoli between 110
                                                                    and 120
                         then
@@ -3191,7 +3191,7 @@ end;
                     end;
             end if;
 
-            -- Correzione per gare ELITE ma "a tempo" (in realtà sport)
+            -- Correzione per gare ELITE ma "a tempo" (in realtï¿½ sport)
             if    instr (upper (v_dati_gara.desc_nome_gara_esterna), 'TEMPO') >
                   0
                or instr (upper (v_dati_gara.desc_nome_gara_esterna), 'SPORT') >
@@ -3488,7 +3488,7 @@ end;
                                  'SALTO IN LIBERTA') >
                              0
                         then
-                            10                             -- salto in libertà
+                            10                             -- salto in libertï¿½
                         when instr (
                                  upper (v_dati_gara.desc_nome_gara_esterna),
                                  'MORFO') >
@@ -3755,7 +3755,7 @@ end;
                     end;
             end if;
 
-            -- 2. DEDUZIONE FK_CODI_CATEGORIA (Età del cavallo)
+            -- 2. DEDUZIONE FK_CODI_CATEGORIA (Etï¿½ del cavallo)
             if v_dati_gara.fk_codi_categoria is null
             then
                 v_dati_gara.fk_codi_categoria :=
@@ -3777,7 +3777,7 @@ end;
                     end;
             end if;
 
-            -- 2.b DEDUZIONE fk_codi_eta (Età cavallo, usata nel calcolo premi)
+            -- 2.b DEDUZIONE fk_codi_eta (Etï¿½ cavallo, usata nel calcolo premi)
             if v_dati_gara.fk_codi_eta is null
             then
                 v_dati_gara.fk_codi_eta :=
@@ -3822,7 +3822,7 @@ end;
                 IF upper (v_dati_gara.desc_nome_gara_esterna) LIKE '%FINALE%' OR v_desc_nome_manifest LIKE '%FINALE%' THEN
                   v_dati_gara.fk_codi_tipo_evento := 56;--'FINALE'
                   end if;
-                -- Se è un campionato di 6 o 7 anni
+                -- Se ï¿½ un campionato di 6 o 7 anni
                 IF upper (v_dati_gara.desc_nome_gara_esterna) LIKE '%CAMPIONATO%ANNI%' THEN
                   v_dati_gara.fk_codi_tipo_evento := 100;--'CAMPIONATO'
                   end if;
@@ -3917,9 +3917,9 @@ BEGIN
     -- Calcolo terza domenica di marzo
     v_terza_domenica := fn_next_day_compatibile (TO_DATE ('01-03-' || v_anno, 'DD-MM-YYYY') - 1) + 14;
     
-    -- MODIFICA: Inizio primo periodo = VENERDÌ prima della terza domenica (non la domenica stessa)
-    -- Così includiamo le manifestazioni che iniziano venerdì/sabato
-    v_inizio_primo := v_terza_domenica - 2;  -- Venerdì prima della terza domenica
+    -- MODIFICA: Inizio primo periodo = VENERDï¿½ prima della terza domenica (non la domenica stessa)
+    -- Cosï¿½ includiamo le manifestazioni che iniziano venerdï¿½/sabato
+    v_inizio_primo := v_terza_domenica - 2;  -- Venerdï¿½ prima della terza domenica
     
     -- Fine primo periodo = ultima domenica di maggio
     v_fine_primo := fn_next_day_compatibile (LAST_DAY (TO_DATE ('01-05-' || v_anno, 'DD-MM-YYYY')) - 7);
@@ -4347,7 +4347,7 @@ begin
     where sequ_id_classifica_esterna = p_sequ_id_classifica_esterna;
     
     -- Cerca nella mappa premi
-    -- Cerca nella mappa premi e assegna direttamente (premio già diviso per parimerito)
+    -- Cerca nella mappa premi e assegna direttamente (premio giï¿½ diviso per parimerito)
     for i in 1 .. p_mappa_premi.count loop
         if p_mappa_premi(i).id_cavallo = v_id_cavallo then
             p_premio_cavallo := p_mappa_premi(i).premio;
@@ -4554,7 +4554,7 @@ function handler_salto_ostacoli (p_gara_id in number)
                                  CASE v_tipo_distrib 
                                      WHEN 'MASAF' THEN ' (a Fasce)'||u'\000A' 
                                      ELSE ' (Tabella FISE)' ||u'\000A'
-                                 END ||' - Età: '||v_eta||' anni'||u'\000A'||' - Categoria:'|| v_categoria||u'\000A';
+                                 END ||' - Etï¿½: '||v_eta||' anni'||u'\000A'||' - Categoria:'|| v_categoria||u'\000A';
             
         IF c_debug THEN
             DBMS_OUTPUT.PUT_LINE('   >> Tipo Distribuzione: ' || v_tipo_distrib || 
@@ -4679,7 +4679,7 @@ function handler_salto_ostacoli (p_gara_id in number)
                 for i in 1 .. v_classifica.count loop
                     
                     v_mappa_premi(i).id_cavallo := v_classifica(i).id_cavallo;
-                    -- Se è un ritirato 910 non lo premio o anche un eliminato
+                    -- Se ï¿½ un ritirato 910 non lo premio o anche un eliminato
                     if fn_conta_parimerito(v_dati_gara, v_classifica(i).posizione) <> 0 then
                         v_mappa_premi(i).premio := fn_premio_distribuzione_csio(
                             posizione          => v_classifica(i).posizione,
@@ -4825,10 +4825,10 @@ begin
      where dg.sequ_id_dati_gara_esterna = p_gara_id;
     
     if c_debug then
-        dbms_output.put_line('>> 4. Nome manifestazione ed età');
+        dbms_output.put_line('>> 4. Nome manifestazione ed etï¿½');
     end if;
     
-    -- 4. Nome manifestazione ed età
+    -- 4. Nome manifestazione ed etï¿½
     select upper(mf.desc_denom_manifestazione)
       into v_nome_manifestazione
       from tc_dati_gara_esterna dg
@@ -4863,7 +4863,7 @@ begin
             if instr(upper(v_dati_gara.desc_nome_gara_esterna), 'PRELIMINARY') > 0 
                or instr(upper(v_dati_gara.desc_nome_gara_esterna), 'PRELIMINARE') > 0 then
                 if c_debug then
-                    dbms_output.put_line('>> Gara PRELIMINARY: non premiata (solo FINALE è premiata)');
+                    dbms_output.put_line('>> Gara PRELIMINARY: non premiata (solo FINALE ï¿½ premiata)');
                 end if;
                 return l_risultati;
             end if;
@@ -4900,7 +4900,7 @@ begin
     if c_debug then
         dbms_output.put_line('>> Manifestazione: ' || v_nome_manifestazione);
         dbms_output.put_line('>> Gara: ' || v_dati_gara.desc_nome_gara_esterna);        
-        dbms_output.put_line('>> Età: ' || v_eta_cavalli || ' anni');
+        dbms_output.put_line('>> Etï¿½: ' || v_eta_cavalli || ' anni');
         dbms_output.put_line('>> Giornata: ' || v_giornata);
         dbms_output.put_line('>> Soglia punteggio: ' || v_soglia_punteggio || '%');
         dbms_output.put_line('>> Montepremi totale: ' || v_montepremi_tot);
@@ -4951,7 +4951,7 @@ begin
             v_mappa_premi(v_idx_mappa).fascia := v_classifica(i).posizione;
         end loop;
     else
-        -- Determina percentuali e max premiati in base all'età
+        -- Determina percentuali e max premiati in base all'etï¿½
         if v_eta_cavalli in (7, 8) then
             v_percentuali := sys.odcinumberlist(0.50, 0.30, 0.20);
             v_max_premiati := 3;
@@ -5107,9 +5107,9 @@ end handler_dressage;
 --    JOIN TC_EDIZIONE ed ON ed.sequ_id_edizione = ee.fk_sequ_id_edizione
 --    where dg.sequ_id_dati_gara_esterna = p_gara_id;
 --     if c_debug then
---            dbms_output.put_line('>> 4. Nome manifestazione ed età');
+--            dbms_output.put_line('>> 4. Nome manifestazione ed etï¿½');
 --        end if;
---    -- 4. Nome manifestazione ed età
+--    -- 4. Nome manifestazione ed etï¿½
 --    select upper(mf.desc_denom_manifestazione)
 --    into v_nome_manifestazione
 --    from tc_dati_gara_esterna dg
@@ -5133,7 +5133,7 @@ end handler_dressage;
 --
 --    -- 5. Determina soglia e montepremi
 --    if v_nome_manifestazione = 'CIRCUITO MASAF DI DRESSAGE' then
---    -- TAPPE: solo 2° giornata, soglia 60%
+--    -- TAPPE: solo 2ï¿½ giornata, soglia 60%
 --        if v_giornata != 2 then
 --            if c_debug then
 --                dbms_output.put_line('>> Tappa giornata ' || v_giornata || ': non premiata (solo giornata 2)');
@@ -5141,13 +5141,13 @@ end handler_dressage;
 --            return l_risultati;
 --        end if;
 --    
---        -- NUOVO CONTROLLO: Escludi gare PRELIMINARY (solo FINALE è premiata)
---        -- Per cavalli 4 anni non c'è distinzione PRELIMINARY/FINALE
+--        -- NUOVO CONTROLLO: Escludi gare PRELIMINARY (solo FINALE ï¿½ premiata)
+--        -- Per cavalli 4 anni non c'ï¿½ distinzione PRELIMINARY/FINALE
 --        if v_eta_cavalli in (5, 6, 7, 8) then
 --            if instr(upper(v_dati_gara.desc_nome_gara_esterna), 'PRELIMINARY') > 0 
 --               or instr(upper(v_dati_gara.desc_nome_gara_esterna), 'PRELIMINARE') > 0 then
 --                if c_debug then
---                    dbms_output.put_line('>> Gara PRELIMINARY: non premiata (solo FINALE è premiata)');
+--                    dbms_output.put_line('>> Gara PRELIMINARY: non premiata (solo FINALE ï¿½ premiata)');
 --                end if;
 --                return l_risultati;
 --            end if;
@@ -5186,7 +5186,7 @@ end handler_dressage;
 --    if c_debug then
 --        dbms_output.put_line('>> Manifestazione: ' || v_nome_manifestazione);
 --        dbms_output.put_line('>> Gara: ' || v_dati_gara.desc_nome_gara_esterna);        
---        dbms_output.put_line('>> Età: ' || v_eta_cavalli || ' anni');
+--        dbms_output.put_line('>> Etï¿½: ' || v_eta_cavalli || ' anni');
 --        dbms_output.put_line('>> Giornata: ' || v_giornata);
 --        dbms_output.put_line('>> Soglia punteggio: ' || v_soglia_punteggio || '%');
 --        dbms_output.put_line('>> Montepremi totale: ' || v_montepremi_tot);
@@ -5249,7 +5249,7 @@ end handler_dressage;
 --   
 --        if v_eta_cavalli in (7,8) then
 --        -- 7. Costruzione mappa premi: per 7 e 8 anni si premiano i primi 3
---        -- 1°=50%, 2°=30%, 3°=20%
+--        -- 1ï¿½=50%, 2ï¿½=30%, 3ï¿½=20%
 --            if c_debug then
 --                dbms_output.put_line('>> v_classifica.count :'||v_classifica.count);
 --            end if;
@@ -5277,7 +5277,7 @@ end handler_dressage;
 --                
 --        else
 --        -- 7. Costruzione mappa premi: solo primi 5 con distribuzione fissa
---        -- 1°=35%, 2°=22%, 3°=17%, 4°=14%, 5°=12%
+--        -- 1ï¿½=35%, 2ï¿½=22%, 3ï¿½=17%, 4ï¿½=14%, 5ï¿½=12%
 --        
 --            for i in 1 .. least(5, v_classifica.count) loop
 --                v_mappa_premi(i).id_cavallo := v_classifica(i).id_cavallo;
@@ -5564,7 +5564,7 @@ function handler_endurance (p_gara_id in number)
             then
                 if c_debug
                 then
-                    dbms_output.put_line ('Gara con più di 4 partecipanti ');
+                    dbms_output.put_line ('Gara con piï¿½ di 4 partecipanti ');
                 end if;
 
                 pkg_calcoli_premi_manifest.calcola_premio_foals_2025 (
@@ -5597,7 +5597,7 @@ function handler_endurance (p_gara_id in number)
                            and rownum = 1;
 
 
-                    -- Accorpamento con l¿altra gara
+                    -- Accorpamento con lï¿½altra gara
                     pkg_calcoli_premi_manifest.calcola_premio_foals_2025 (
                         p_id_gara_1   => p_gara_id,
                         p_id_gara_2   => v_id_gara_altra);
@@ -5791,7 +5791,7 @@ end if;
             dbms_output.put_line ('Gara ID: ' || p_gara_id);
             dbms_output.put_line (
                 'Nome gara: ' || v_dati_gara.desc_nome_gara_esterna);
-            dbms_output.put_line ('Età: ' || v_dati_gara.fk_codi_eta);
+            dbms_output.put_line ('Etï¿½: ' || v_dati_gara.fk_codi_eta);
             dbms_output.put_line (
                 'Categoria: ' || v_dati_gara.fk_codi_categoria);
             dbms_output.put_line (
@@ -6068,7 +6068,7 @@ end handler_monta_da_lavoro;
         p_risultati := t_tabella_premi ();
 
 
-        -- Verifica se la gara ha già premi calcolati
+        -- Verifica se la gara ha giï¿½ premi calcolati
         select case when count (1) > 0 then 1 else 0 end
           into v_premi_gia_calcolati
           from tc_dati_classifica_esterna
@@ -6111,13 +6111,13 @@ end handler_monta_da_lavoro;
             if v_premi_gia_calcolati = 1
             then
                 p_risultato :=
-                    'Attenzione la Gara ha già i premi elaborati.';
+                    'Attenzione la Gara ha giï¿½ i premi elaborati.';
             end if;
 
             if p_forza_elabora = 1
             then
                 p_risultato :=
-                    'Attenzione la Gara è definita come senza premi Masaf.';
+                    'Attenzione la Gara ï¿½ definita come senza premi Masaf.';
 
                 update tc_dati_classifica_esterna
                    set importo_masaf_calcolato = null
@@ -6159,7 +6159,7 @@ end handler_monta_da_lavoro;
 
             if gare_gia_elaborate.exists (rec.sequ_id_dati_gara_esterna)
             then
-                dbms_output.put_line ('  -> Già elaborata, salto.');
+                dbms_output.put_line ('  -> Giï¿½ elaborata, salto.');
                 continue;
             end if;
 
@@ -6257,7 +6257,7 @@ end handler_monta_da_lavoro;
             dbms_output.put_line ('      Cavallo ID   : ' || v_id_cavallo);
             dbms_output.put_line ('      Posizione    : ' || p_posizione);
         end if;
-        -- Categoria e età
+        -- Categoria e etï¿½
         v_categoria :=
             upper (fn_desc_tipologica (p_dati_gara.fk_codi_categoria));
         v_eta :=
@@ -6285,7 +6285,7 @@ end handler_monta_da_lavoro;
                     if c_debug
                     then
                          dbms_output.put_line ('      - Fascia ' || p_mappa_premi(i).fascia || 
-                                  ' | Premio ¿' || LPAD(TO_CHAR(p_mappa_premi(i).premio, '99990.00'), 10));
+                                  ' | Premio ï¿½' || LPAD(TO_CHAR(p_mappa_premi(i).premio, '99990.00'), 10));
 
                     end if;
 
@@ -6316,7 +6316,7 @@ end handler_monta_da_lavoro;
 
         if c_debug
         then
-            dbms_output.put_line ('      - Aggiornato DB con premio ¿' || 
+            dbms_output.put_line ('      - Aggiornato DB con premio ï¿½' || 
                                   LPAD(TO_CHAR(p_premio_cavallo, '99990.00'), 10));
 
         end if;
@@ -6455,7 +6455,7 @@ end handler_monta_da_lavoro;
         v_tipo_prova_descr    varchar2 (100);
         v_tipo_evento_descr   varchar2 (100);
         v_eta_cavallo_id      number;
-        v_eta_cavallo_num     number;         -- Età numerica (1, 2, o 3 anni)
+        v_eta_cavallo_num     number;         -- Etï¿½ numerica (1, 2, o 3 anni)
         v_id_cavallo          number;
         v_fascia              number;
     begin
@@ -6485,11 +6485,11 @@ end handler_monta_da_lavoro;
             upper (fn_desc_tipologica (p_dati_gara.fk_codi_tipo_prova));
         v_tipo_evento_descr :=
             upper (fn_desc_tipologica (p_dati_gara.fk_codi_tipo_evento));
-        v_eta_cavallo_id := p_dati_gara.fk_codi_eta; -- Assumiamo sia già popolato o dedotto correttamente
+        v_eta_cavallo_id := p_dati_gara.fk_codi_eta; -- Assumiamo sia giï¿½ popolato o dedotto correttamente
 
 
 
-        -- Mappatura ID età a numero (semplificata, da adattare se gli ID sono diversi)
+        -- Mappatura ID etï¿½ a numero (semplificata, da adattare se gli ID sono diversi)
         case v_eta_cavallo_id
             when 111
             then
@@ -6511,9 +6511,9 @@ end handler_monta_da_lavoro;
                 || v_tipo_prova_descr
                 || ', Tipo Evento: '
                 || v_tipo_evento_descr
-                || ', Età ID: '
+                || ', Etï¿½ ID: '
                 || v_eta_cavallo_id
-                || ', Età Num: '
+                || ', Etï¿½ Num: '
                 || v_eta_cavallo_num);
         end if;
 
@@ -6553,7 +6553,7 @@ end handler_monta_da_lavoro;
                             || v_id_cavallo
                             || ' - Fascia '
                             || v_fascia
-                            || ' - Premio ¿'
+                            || ' - Premio ï¿½'
                             || p_premio_cavallo);
                     end if;
 
@@ -6759,11 +6759,11 @@ end handler_monta_da_lavoro;
 
                 if premiabili.count >= v_metaparte
                 then
-                    -- Ho già premiato abbastanza cavalli, esco
+                    -- Ho giï¿½ premiato abbastanza cavalli, esco
                     exit;
                 elsif premiabili.count + gruppo_temp.count > v_metaparte
                 then
-                    -- Sto per superare la soglia: premio solo se è un gruppo di parimerito
+                    -- Sto per superare la soglia: premio solo se ï¿½ un gruppo di parimerito
                     if gruppo_temp.count > 1
                     then
                         for j in 1 .. gruppo_temp.count
@@ -6787,7 +6787,7 @@ end handler_monta_da_lavoro;
                         end loop;
                     else
                         dbms_output.put_line (
-                            '- NON aggiungo cavallo fuori soglia, non è parimerito.');
+                            '- NON aggiungo cavallo fuori soglia, non ï¿½ parimerito.');
                     end if;
 
                     exit;
@@ -7057,7 +7057,7 @@ end handler_monta_da_lavoro;
         v_tipo_prova_descr    varchar2 (100);
         v_tipo_evento_descr   varchar2 (100);
         v_eta_cavallo_id      number;
-        v_eta_cavallo_num     number;         -- Età numerica (1, 2, o 3 anni)
+        v_eta_cavallo_num     number;         -- Etï¿½ numerica (1, 2, o 3 anni)
         v_id_cavallo          number;
         v_fascia              number;
     begin
@@ -7090,7 +7090,7 @@ end handler_monta_da_lavoro;
             upper (fn_desc_tipologica (p_dati_gara.fk_codi_tipo_evento));
         v_eta_cavallo_id := p_dati_gara.fk_codi_eta; 
 
-        -- Mappatura ID età a numero (semplificata, da adattare se gli ID sono diversi)
+        -- Mappatura ID etï¿½ a numero (semplificata, da adattare se gli ID sono diversi)
         case v_eta_cavallo_id
             when 111
             then
@@ -7115,9 +7115,9 @@ end handler_monta_da_lavoro;
                 || v_tipo_prova_descr
                 || ', Tipo Evento: '
                 || v_tipo_evento_descr
-                || ', Età ID: '
+                || ', Etï¿½ ID: '
                 || v_eta_cavallo_id
-                || ', Età Num: '
+                || ', Etï¿½ Num: '
                 || v_eta_cavallo_num);
         end if;
 
@@ -7637,7 +7637,7 @@ PROCEDURE fn_calcola_montepremi_salto_v2 (
             dbms_output.put_line (RPAD('-', 80, '-'));
             dbms_output.put_line ('   Nome gara     : ' || p_dati_gara.desc_nome_gara_esterna);
             dbms_output.put_line ('   Categoria     : ' || v_categoria);
-            dbms_output.put_line ('   Et¿ cavallo   : ' || v_eta);
+            dbms_output.put_line ('   Etï¿½ cavallo   : ' || v_eta);
             dbms_output.put_line ('   Tipo gara     : ' || NVL(v_tipo_gara, 'N/A'));
             dbms_output.put_line ('   Partenti      : ' || p_num_part);
             dbms_output.put_line (RPAD('-', 80, '-'));
@@ -7650,7 +7650,7 @@ PROCEDURE fn_calcola_montepremi_salto_v2 (
             if v_eta = 7 then
                 if instr(upper(p_dati_gara.desc_nome_gara_esterna), 'FINALE') > 0 then
                     p_montepremi := CASE p_anno WHEN 2025 THEN C_2025_SO_CSIO_7_FINALE ELSE C_2026_SO_CSIO_7_FINALE END;
-                else -- 1¿ e 2¿ prova
+                else -- 1ï¿½ e 2ï¿½ prova
                     p_montepremi := CASE p_anno WHEN 2025 THEN C_2025_SO_CSIO_7_PROVA ELSE C_2026_SO_CSIO_7_PROVA END;
                 end if;
                 p_desc_calcolo_premio := p_desc_calcolo_premio ||' montepremi fisso ';
@@ -7658,7 +7658,7 @@ PROCEDURE fn_calcola_montepremi_salto_v2 (
             elsif v_eta = 6 then
                 if instr(upper(p_dati_gara.desc_nome_gara_esterna), 'FINALE') > 0 then
                     p_montepremi := CASE p_anno WHEN 2025 THEN C_2025_SO_CSIO_6_FINALE ELSE C_2026_SO_CSIO_6_FINALE END;
-                else -- 1¿ e 2¿ prova
+                else -- 1ï¿½ e 2ï¿½ prova
                     p_montepremi := CASE p_anno WHEN 2025 THEN C_2025_SO_CSIO_6_PROVA ELSE C_2026_SO_CSIO_6_PROVA END;
                 end if;
                 p_desc_calcolo_premio := p_desc_calcolo_premio ||' montepremi fisso ';
@@ -7691,7 +7691,7 @@ PROCEDURE fn_calcola_montepremi_salto_v2 (
         -- Finali Circuito Classico MASAF - Campionati e Criterium - si ricalcolano le percentuali di split
         if v_nome_manifestazione like 'FINALE%CIRCUITO%CLASSICO%'
         then
-            -- Determino tipo gara (CRITERIUM o CAMPIONATO) e se ¿ FINALE
+            -- Determino tipo gara (CRITERIUM o CAMPIONATO) e se ï¿½ FINALE
             v_is_criterium := instr(upper(p_dati_gara.desc_nome_gara_esterna), 'CRITERIUM') > 0;
             v_is_finale    := instr(upper(p_dati_gara.desc_nome_gara_esterna), 'FINALE') > 0;
     
@@ -7719,7 +7719,7 @@ PROCEDURE fn_calcola_montepremi_salto_v2 (
                     else 'CAMPIONATO 4 ANNI - PROVA'
                 end;
                 
-                -- Percentuali giudizio/precisione per et¿ 4
+                -- Percentuali giudizio/precisione per etï¿½ 4
                 if v_is_criterium then
                     v_perc_giudizio := 1;
                     v_perc_precis   := 0;
@@ -7750,7 +7750,7 @@ PROCEDURE fn_calcola_montepremi_salto_v2 (
                     else 'CAMPIONATO 5 ANNI - PROVA'
                 end;
                 
-                -- Percentuali giudizio/precisione per et¿ 5
+                -- Percentuali giudizio/precisione per etï¿½ 5
                 if v_is_criterium then
                     v_perc_giudizio := 1;
                     v_perc_precis   := 0;
@@ -7758,7 +7758,7 @@ PROCEDURE fn_calcola_montepremi_salto_v2 (
                     v_perc_giudizio := CASE p_anno WHEN 2025 THEN C_2025_SO_PERC_ELITE5_GIU ELSE C_2025_SO_PERC_ELITE5_GIU END;
                     v_perc_precis   := CASE p_anno WHEN 2025 THEN C_2025_SO_PERC_ELITE5_PREC ELSE C_2025_SO_PERC_ELITE5_PREC END;
                 end if;
-            elsif v_eta in (6,7) and  upper(p_dati_gara.desc_nome_gara_esterna) not like'%OLTRE%' --se BREVETTO o 1¿ GR allora si stratta di CRITURIUM con altri montepremi
+            elsif v_eta in (6,7) and  upper(p_dati_gara.desc_nome_gara_esterna) not like'%OLTRE%' --se BREVETTO o 1ï¿½ GR allora si stratta di CRITURIUM con altri montepremi
             then
                 -- Montepremi
                 if v_is_criterium then
@@ -7781,10 +7781,10 @@ PROCEDURE fn_calcola_montepremi_salto_v2 (
                     else 'CAMPIONATO 6/7 ANNI - PROVA'
                 end;
                 
-                -- Percentuali giudizio/precisione per et¿ 6 non ci sono viene dato il 100% a quella unica gara
+                -- Percentuali giudizio/precisione per etï¿½ 6 non ci sono viene dato il 100% a quella unica gara
                 v_perc_giudizio := 1;
                 v_perc_precis   := 1;
-            elsif v_eta = 7 and upper(p_dati_gara.desc_nome_gara_esterna) like'%OLTRE%' --se BREVETTO o 1¿ GR allora si stratta di CRITURIUM con altri montepremi
+            elsif v_eta = 7 and upper(p_dati_gara.desc_nome_gara_esterna) like'%OLTRE%' --se BREVETTO o 1ï¿½ GR allora si stratta di CRITURIUM con altri montepremi
             then
                 -- Montepremi
                 p_montepremi := case when v_is_finale
@@ -7795,7 +7795,7 @@ PROCEDURE fn_calcola_montepremi_salto_v2 (
                 -- Descrizione
                 p_desc_calcolo_premio :=  'CRITERIUM 7 ANNI E OLTRE BR o 1GR';
                 
-                -- Percentuali giudizio/precisione per et¿ 6 non ci sono viene dato il 100% a quella unica gara
+                -- Percentuali giudizio/precisione per etï¿½ 6 non ci sono viene dato il 100% a quella unica gara
                 v_perc_giudizio := 1;
                 v_perc_precis   := 1;
             
@@ -7826,7 +7826,7 @@ PROCEDURE fn_calcola_montepremi_salto_v2 (
                     else 'CAMPIONATO 8 E OLTRE ANNI - PROVA'
                 end;
                 
-                -- Percentuali giudizio/precisione per et¿ 6 non ci sono viene dato il 100% a quella unica gara
+                -- Percentuali giudizio/precisione per etï¿½ 6 non ci sono viene dato il 100% a quella unica gara
                 v_perc_giudizio := 1;
                 v_perc_precis   := 1;
             end if;
@@ -7975,7 +7975,7 @@ PROCEDURE fn_calcola_montepremi_salto_v2 (
         then
             dbms_output.put_line (CHR(10) || '>> CALCOLO MONTEPREMI');
             dbms_output.put_line (RPAD('-', 80, '-'));
-            dbms_output.put_line ('   Montepremi base        : ¿'|| LPAD(TO_CHAR(p_montepremi, '999990.00'), 12));
+            dbms_output.put_line ('   Montepremi base        : ï¿½'|| LPAD(TO_CHAR(p_montepremi, '999990.00'), 12));
             dbms_output.put_line ('   Num. partenti          : ' || LPAD(p_num_part, 3));
             dbms_output.put_line ('   Categoria              : ' || v_categoria);
             dbms_output.put_line ('   Periodo                : ' || p_periodo);
@@ -8315,6 +8315,13 @@ BEGIN
         END IF;
     END LOOP;
 
+    -- UPDATE DESCRIZIONE CALCOLO PREMI IN MODALITÃ€ TEST
+    IF p_modalita_test THEN
+        UPDATE tc_dati_gara_esterna
+           SET desc_calcolo_premi = v_desc_calcolo_premio
+         WHERE sequ_id_dati_gara_esterna = p_gara_id;
+    END IF;
+
     -- SALVATAGGIO PRODUZIONE
     IF NOT p_modalita_test THEN
        -- update tc_dati_gara_esterna ...
@@ -8325,7 +8332,7 @@ BEGIN
         DBMS_OUTPUT.PUT_LINE (CHR(10) || RPAD('=', 80, '='));
         DBMS_OUTPUT.PUT_LINE ('   FINE HANDLER SALTO OSTACOLI V2 - Gara ID: ' || p_gara_id);
         IF p_modalita_test THEN
-             DBMS_OUTPUT.PUT_LINE ('   ** ESEGUITO IN MODALITÀ TEST - NESSUN CAMBIO AI DATI DI GARA **');
+             DBMS_OUTPUT.PUT_LINE ('   ** ESEGUITO IN MODALITï¿½ TEST - NESSUN CAMBIO AI DATI DI GARA **');
         END IF;
         DBMS_OUTPUT.PUT_LINE (RPAD('=', 80, '=') || CHR(10));
     END IF;
