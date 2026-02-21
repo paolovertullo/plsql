@@ -10,7 +10,6 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install PyGithub
-      - run: ls -la
-      - run: python $GITHUB_WORKSPACE/setup_roy_kent_repo.py
+      - run: python $GITHUB_WORKSPACE/.github/workflows/setup_roy_kent_repo.py
         env:
           GITHUB_TOKEN: ${{ secrets.PERSONAL_TOKEN }}
