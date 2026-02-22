@@ -3,7 +3,11 @@
 ## Fase 1 (ora)
 - [ ] n8n in locale
 - [ ] Primi flussi n8n
+    - [ ] Polyedro - Cartellino
+    - [ ] Polyedro - Presenza
+    - [ ] Jira
 - [ ] MCP custom funzionante
+    - [ ] health-check-services
 - [ ] GitHub + Filesystem MCP
 
 ## Fase 2 (1-3 mesi)
