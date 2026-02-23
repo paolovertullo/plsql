@@ -1,0 +1,15 @@
+{
+  "name": "roy-kent-proxy",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node proxy.js",
+    "dev": "node --watch proxy.js"
+  },
+  "dependencies": {
+    "@octokit/rest": "^20.1.1",
+    "cors": "^2.8.5",
+    "express": "^4.18.3",
+    "node-fetch": "^3.3.2"
+  }
+}
