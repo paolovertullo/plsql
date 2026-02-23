@@ -1,0 +1,1082 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Roy Kent · AI Dashboard</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:        #111210;
+  --surface:   rgba(30,32,27,.82);
+  --surface-h: rgba(40,43,35,.96);
+  --border:    rgba(155,165,135,.12);
+  --border-h:  rgba(175,190,148,.22);
+  --text:      #d2d6c4;
+  --text-dim:  #889270;
+  --muted:     #525e44;
+
+  --olive:     #8fa466;
+  --olive-d:   #526040;
+  --olive-l:   #adc07a;
+
+  --amber:     #b08038;
+  --amber-l:   #cfa050;
+
+  --russet:    #b85040;   /* NEW — russet/brick red for error counts */
+  --russet-l:  #d46050;
+
+  --brown:     #6a4e2c;
+  --green-s:   #68a85a;
+  --red-s:     #b05040;
+  --yellow-s:  #b88830;
+
+  --radius:12px;
+  --font:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+  --sb-w:212px; --sb-col:50px;
+  --tr:.28s cubic-bezier(.4,0,.2,1);
+}
+html,body{height:100%;font-family:var(--font);background:var(--bg);color:var(--text);font-size:14px;}
+.app{display:flex;height:100vh;overflow:hidden;}
+
+body::before{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:
+    radial-gradient(ellipse 65% 50% at 22% 0%,  rgba(82,96,64,.11) 0%,transparent 62%),
+    radial-gradient(ellipse 45% 35% at 84% 88%, rgba(168,120,44,.08) 0%,transparent 58%);
+}
+
+/* ══════════════════════════════════════ SIDEBAR */
+.sidebar{
+  width:var(--sb-col); min-width:var(--sb-col);
+  background:rgba(11,12,9,.97);
+  border-right:1px solid var(--border);
+  display:flex;flex-direction:column;
+  backdrop-filter:blur(20px);
+  transition:width var(--tr),min-width var(--tr);
+  overflow:visible;   /* let tooltips + badges bleed out */
+  position:relative;z-index:20;flex-shrink:0;
+}
+.sidebar.open{width:var(--sb-w);min-width:var(--sb-w);overflow:hidden;}
+
+/* Toggle arrow */
+.sb-btn{
+  position:absolute;top:14px;right:-13px;
+  width:26px;height:26px;border-radius:50%;
+  background:rgba(143,164,102,.10);border:1px solid rgba(143,164,102,.22);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;z-index:30;
+  transition:transform var(--tr),background .2s;
+}
+.sb-btn:hover{background:rgba(143,164,102,.22);}
+.sidebar.open .sb-btn{transform:rotate(180deg);}
+.sb-btn svg{width:11px;height:11px;stroke:var(--olive-l);stroke-width:2.5;fill:none;}
+
+/* Logo */
+.sb-logo{
+  padding:.9rem .75rem .85rem;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:.6rem;
+  white-space:nowrap;overflow:hidden;min-height:56px;flex-shrink:0;
+}
+/* Neural-net icon — custom SVG */
+.sb-logo-icon{
+  width:28px;height:28px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+}
+.sb-logo-text{transition:opacity var(--tr);white-space:nowrap;}
+.sb-logo-text strong{font-size:.9rem;font-weight:800;color:#dce0cc;display:block;letter-spacing:-.02em;}
+.sb-logo-text small{font-size:.58rem;color:var(--muted);letter-spacing:.05em;text-transform:uppercase;}
+.sidebar:not(.open) .sb-logo-text{opacity:0;pointer-events:none;}
+
+/* Nav */
+.nav-wrap{flex:1;padding:.45rem 0;overflow:visible;}
+.nav-item{
+  display:flex;align-items:center;gap:.6rem;
+  padding:.58rem .75rem;cursor:pointer;
+  color:var(--muted);font-size:.8rem;font-weight:500;
+  border-left:2px solid transparent;
+  transition:all .18s;user-select:none;
+  white-space:nowrap;position:relative;
+  /* never clip so badge + tooltip show */
+  overflow:visible;
+}
+.nav-item:hover{color:var(--text);background:rgba(143,164,102,.06);}
+.nav-item.active{color:var(--olive-l);border-left-color:var(--olive);background:rgba(143,164,102,.08);}
+
+/* icon always visible */
+.nav-icon{
+  width:18px;height:18px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  position:relative; /* for badge anchor */
+}
+.nav-icon svg{width:16px;height:16px;stroke:currentColor;stroke-width:1.75;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+
+/* Label — only shown when open */
+.nav-lbl{transition:opacity var(--tr);white-space:nowrap;}
+.sidebar:not(.open) .nav-lbl{opacity:0;width:0;overflow:hidden;pointer-events:none;}
+
+/* ── Collapsed: icon-only mode ── */
+.sidebar:not(.open) .nav-item{justify-content:center;padding:.58rem 0;}
+
+/* ── Alert badge on icon (collapsed) ── */
+.nav-icon-badge{
+  position:absolute;top:-4px;right:-5px;
+  width:8px;height:8px;border-radius:50%;
+  border:1.5px solid rgba(11,12,9,.97);
+  display:none; /* shown via JS */
+}
+.nav-icon-badge.err {background:var(--russet);   display:block;}
+.nav-icon-badge.warn{background:var(--yellow-s); display:block;animation:wblink 1.6s ease-in-out infinite;}
+/* pulse ring on badge */
+.nav-icon-badge.err::after{
+  content:'';position:absolute;inset:-3px;border-radius:50%;
+  border:1.5px solid var(--russet);
+  animation:ring 2s ease-out infinite;
+}
+
+/* Inline badge (open sidebar) */
+.nav-badge-open{
+  margin-left:auto;
+  background:var(--russet);color:#fff;
+  font-size:.56rem;font-weight:700;padding:1px 5px;border-radius:999px;
+  opacity:0;transition:opacity var(--tr);
+}
+.sidebar.open .nav-badge-open{opacity:1;}
+
+/* Tooltip (collapsed only) */
+.nav-tip{
+  position:absolute;left:calc(var(--sb-col) + 9px);top:50%;transform:translateY(-50%);
+  background:#191d14;border:1px solid var(--border-h);border-radius:7px;
+  color:var(--text);font-size:.72rem;padding:4px 9px;
+  white-space:nowrap;pointer-events:none;opacity:0;
+  transition:opacity .15s;z-index:200;
+  box-shadow:0 4px 16px rgba(0,0,0,.4);
+}
+.sidebar:not(.open) .nav-item:hover .nav-tip{opacity:1;}
+
+/* Sidebar footer */
+.sb-foot{
+  padding:.65rem .75rem;border-top:1px solid var(--border);
+  display:flex;flex-direction:column;gap:.34rem;overflow:visible;flex-shrink:0;
+}
+.ss-row{display:flex;align-items:center;gap:.42rem;font-size:.67rem;color:var(--muted);white-space:nowrap;}
+.ss-lbl{transition:opacity var(--tr);}
+.sidebar:not(.open) .ss-lbl{opacity:0;width:0;overflow:hidden;}
+.sidebar:not(.open) .ss-row{justify-content:center;}
+.ss-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;position:relative;}
+.ss-dot.on {background:var(--green-s);}
+.ss-dot.on::after{content:'';position:absolute;inset:-3px;border-radius:50%;border:1.5px solid var(--green-s);animation:ring 2.4s ease-out infinite;}
+.ss-dot.off {background:var(--red-s);}
+.ss-dot.warn{background:var(--yellow-s);animation:wblink 1.6s ease-in-out infinite;}
+@keyframes ring   {0%{opacity:.5;transform:scale(1)}100%{opacity:0;transform:scale(2.3)}}
+@keyframes wblink {0%,100%{opacity:1}50%{opacity:.28}}
+
+/* ══════════════════════════════════════ MAIN */
+.main{
+  flex:1;overflow:hidden;position:relative;z-index:1;
+  display:flex;flex-direction:column;
+  background:
+    radial-gradient(ellipse 60% 45% at 24% -4%, rgba(78,94,52,.12) 0%,transparent 58%),
+    radial-gradient(ellipse 42% 32% at 83% 88%, rgba(154,106,40,.08) 0%,transparent 56%),
+    linear-gradient(165deg,#111210 0%,#12130f 45%,#111009 100%);
+}
+
+/* ══════════════════════════════════════ SECTIONS */
+.section{
+  display:none;height:100%;overflow-y:auto;
+  padding:1.65rem 1.85rem;
+  animation:fadeUp .2s ease;
+  flex-direction:column;
+}
+/* Each section shown with flex */
+.section.active{display:flex;}
+.section::-webkit-scrollbar{width:3px;}
+.section::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+
+.page-hd{margin-bottom:1.4rem;flex-shrink:0;}
+.page-title{
+  font-size:1.28rem;font-weight:800;color:#d8dcca;
+  letter-spacing:-.025em;display:flex;align-items:center;gap:.5rem;
+}
+.page-title svg{width:17px;height:17px;stroke:var(--olive);stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+.page-sub{font-size:.7rem;color:var(--muted);margin-top:4px;}
+
+/* Card */
+.card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:1.1rem 1.3rem;backdrop-filter:blur(14px);
+  transition:transform .2s,box-shadow .2s,background .2s,border-color .2s;
+}
+.card:hover{
+  transform:translateY(-3px) scale(1.005);
+  box-shadow:0 12px 30px rgba(0,0,0,.45),0 0 0 1px var(--border-h);
+  background:var(--surface-h);border-color:var(--border-h);
+}
+
+/* ══════════════════════════════════════ CHAT */
+/* chat section fills full height */
+#sec-chat{padding:1.65rem 1.85rem;}
+
+.chat-layout{display:grid;grid-template-columns:1fr 248px;gap:1.05rem;flex:1;min-height:0;}
+
+.chat-panel{
+  display:flex;flex-direction:column;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  overflow:hidden;min-height:0;
+}
+.chat-hdr{
+  padding:.8rem 1.1rem;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:.8rem;flex-shrink:0;
+  background:rgba(11,12,9,.52);
+}
+.agent-av{
+  width:34px;height:34px;border-radius:9px;flex-shrink:0;
+  background:linear-gradient(140deg,#263318,#415a28);
+  border:1px solid rgba(143,164,102,.18);
+  display:flex;align-items:center;justify-content:center;position:relative;
+}
+.agent-av svg{width:17px;height:17px;stroke:var(--olive-l);stroke-width:1.8;fill:none;}
+.av-ring{
+  position:absolute;bottom:-2px;right:-2px;
+  width:10px;height:10px;border-radius:50%;
+  background:var(--green-s);border:2px solid var(--bg);
+}
+.av-ring::after{content:'';position:absolute;inset:-3px;border-radius:50%;border:1.5px solid var(--green-s);animation:ring 2.4s ease-out infinite;}
+.chat-hdr-name{font-size:.9rem;font-weight:700;color:#d8dcca;letter-spacing:-.01em;}
+.chat-hdr-sub {font-size:.66rem;color:var(--muted);margin-top:2px;}
+.chat-hdr-pill{
+  margin-left:auto;display:flex;align-items:center;gap:.32rem;
+  font-size:.66rem;font-weight:600;color:var(--green-s);
+  background:rgba(104,168,90,.08);border:1px solid rgba(104,168,90,.18);
+  padding:2px 9px;border-radius:999px;
+}
+.pill-dot{width:6px;height:6px;border-radius:50%;background:var(--green-s);flex-shrink:0;position:relative;}
+.pill-dot::after{content:'';position:absolute;inset:-3px;border-radius:50%;border:1.5px solid var(--green-s);animation:ring 2.4s ease-out infinite;}
+
+/* Ticker */
+.ticker{
+  padding:.38rem 1.1rem;border-bottom:1px solid var(--border);
+  background:rgba(143,164,102,.03);
+  font-size:.66rem;color:var(--text-dim);
+  display:flex;align-items:center;gap:.42rem;flex-shrink:0;
+}
+.ticker-dot{width:5px;height:5px;border-radius:50%;background:var(--amber);flex-shrink:0;animation:wblink 2s ease-in-out infinite;}
+.ticker-txt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+/* Timeline */
+.chat-tl{flex:1;overflow-y:auto;padding:.3rem 0 .4rem;min-height:0;}
+.chat-tl::-webkit-scrollbar{width:3px;}
+.chat-tl::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+
+.tl-sep{display:flex;align-items:center;gap:.7rem;margin:1rem 1.25rem .6rem;}
+.tl-sep::before,.tl-sep::after{content:'';flex:1;height:1px;}
+.tl-sep::before{background:linear-gradient(to right,transparent,rgba(155,165,135,.14));}
+.tl-sep::after {background:linear-gradient(to left, transparent,rgba(155,165,135,.14));}
+.tl-pill{
+  display:flex;align-items:center;gap:.32rem;
+  padding:2px 9px;border-radius:999px;
+  background:rgba(143,164,102,.06);border:1px solid rgba(143,164,102,.14);
+  font-size:.61rem;font-weight:600;color:var(--text-dim);white-space:nowrap;letter-spacing:.04em;
+}
+.tl-pill svg{width:9px;height:9px;stroke:currentColor;stroke-width:2;fill:none;}
+
+.tl-row{display:flex;align-items:flex-start;padding:0 1.25rem;margin-bottom:1px;}
+.tl-row.user{flex-direction:row-reverse;}
+.tl-col{width:29px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;position:relative;}
+.tl-col::before{content:'';position:absolute;top:0;bottom:0;left:50%;transform:translateX(-50%);width:1px;background:rgba(155,165,135,.08);}
+.tl-node{
+  width:9px;height:9px;border-radius:50%;
+  border:2px solid rgba(143,164,102,.32);background:var(--bg);
+  position:relative;z-index:1;margin-top:12px;flex-shrink:0;
+  transition:transform .18s,border-color .18s,box-shadow .18s;
+}
+.tl-row:hover .tl-node{transform:scale(1.55);border-color:var(--olive);box-shadow:0 0 0 3px rgba(143,164,102,.11);}
+.tl-row.user .tl-node{border-color:rgba(176,128,56,.32);}
+.tl-row.user:hover .tl-node{border-color:var(--amber);box-shadow:0 0 0 3px rgba(176,128,56,.11);}
+.tl-ts{font-size:.57rem;color:var(--muted);position:absolute;top:10px;white-space:nowrap;}
+.tl-row:not(.user) .tl-ts{right:calc(100% + 3px);}
+.tl-row.user .tl-ts{left:calc(100% + 3px);}
+.tl-body{flex:1;padding:.1rem .5rem .44rem;max-width:82%;}
+.tl-row.user .tl-body{display:flex;flex-direction:column;align-items:flex-end;}
+.tl-sender{font-size:.58rem;font-weight:700;color:var(--muted);margin-bottom:3px;padding:0 2px;letter-spacing:.05em;text-transform:uppercase;}
+.tl-bubble{display:inline-block;padding:.5rem .8rem;border-radius:10px;font-size:.79rem;line-height:1.57;}
+.tl-row:not(.user) .tl-bubble{background:rgba(22,25,18,.82);border:1px solid var(--border);border-top-left-radius:3px;color:var(--text);}
+.tl-row.user .tl-bubble{background:rgba(176,128,56,.1);border:1px solid rgba(176,128,56,.2);border-top-right-radius:3px;color:#d8c090;}
+.code-span{background:rgba(143,164,102,.1);padding:1px 5px;border-radius:4px;font-size:.78em;color:var(--olive-l);}
+
+.typing-dots span{display:inline-block;width:4px;height:4px;border-radius:50%;background:var(--muted);margin:0 2px;animation:tdot .9s infinite;}
+.typing-dots span:nth-child(2){animation-delay:.15s;}
+.typing-dots span:nth-child(3){animation-delay:.3s;}
+@keyframes tdot{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-4px)}}
+
+.chat-inp-wrap{
+  padding:.72rem 1.1rem;border-top:1px solid var(--border);
+  display:flex;gap:.58rem;align-items:flex-end;flex-shrink:0;
+  background:rgba(9,10,7,.42);
+}
+.chat-inp{
+  flex:1;background:rgba(0,0,0,.28);border:1px solid var(--border);border-radius:9px;
+  color:var(--text);padding:.52rem .82rem;font-size:.79rem;font-family:var(--font);
+  resize:none;outline:none;max-height:90px;transition:border .2s;
+}
+.chat-inp:focus{border-color:rgba(143,164,102,.36);}
+.chat-inp::placeholder{color:var(--muted);}
+.send-btn{
+  width:33px;height:33px;border:none;border-radius:8px;
+  background:linear-gradient(135deg,var(--olive-d),var(--olive));
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;transition:opacity .2s,transform .15s;
+}
+.send-btn:hover{opacity:.82;transform:scale(1.06);}
+.send-btn svg{width:13px;height:13px;stroke:#fff;stroke-width:2.5;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+
+/* Chat sidebar */
+.chat-side{display:flex;flex-direction:column;gap:.8rem;overflow-y:auto;min-height:0;}
+.chat-side::-webkit-scrollbar{width:3px;}
+.chat-side::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+.side-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:.85rem .92rem;}
+.side-title{font-size:.61rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.62rem;display:flex;align-items:center;gap:.36rem;}
+.side-title svg{width:10px;height:10px;stroke:currentColor;stroke-width:2;fill:none;}
+.info-row{display:flex;justify-content:space-between;align-items:center;font-size:.72rem;margin-bottom:.3rem;}
+.info-row span:first-child{color:var(--muted);}
+.info-row span:last-child{color:var(--text);font-weight:500;}
+.v-g{color:var(--olive-l) !important;}
+.v-a{color:var(--amber-l) !important;}
+.v-r{color:var(--russet-l) !important;}
+
+.p-ind{display:inline-flex;align-items:center;gap:.3rem;font-size:.65rem;font-weight:600;}
+.p-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;position:relative;}
+.p-dot.g{background:var(--green-s);}
+.p-dot.g::after{content:'';position:absolute;inset:-3px;border-radius:50%;border:1.5px solid var(--green-s);animation:ring 2.4s ease-out infinite;}
+.p-dot.a{background:var(--yellow-s);animation:wblink 1.6s ease-in-out infinite;}
+.p-dot.r{background:var(--red-s);}
+
+.qps{display:flex;flex-direction:column;gap:.26rem;}
+.qp{
+  background:rgba(143,164,102,.04);border:1px solid rgba(143,164,102,.1);
+  border-radius:7px;padding:.34rem .6rem;
+  font-size:.69rem;color:var(--muted);cursor:pointer;
+  transition:all .18s;display:flex;align-items:center;gap:.36rem;
+}
+.qp:hover{background:rgba(143,164,102,.09);color:var(--text);border-color:rgba(143,164,102,.22);}
+.qp svg{width:10px;height:10px;stroke:currentColor;stroke-width:2;fill:none;flex-shrink:0;}
+.btn-ghost{
+  background:rgba(143,164,102,.05);border:1px solid var(--border);border-radius:8px;
+  color:var(--text-dim);padding:.4rem .82rem;font-size:.72rem;font-weight:500;
+  cursor:pointer;font-family:var(--font);transition:all .2s;width:100%;margin-top:.26rem;
+}
+.btn-ghost:hover{background:rgba(143,164,102,.1);border-color:var(--border-h);color:var(--text);}
+
+/* ══════════════════════════════════════ WORKFLOWS */
+.stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:.8rem;margin-bottom:1.4rem;}
+.stat-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:.9rem 1.05rem;text-align:center;
+  transition:transform .18s,box-shadow .18s,border-color .18s;
+  position:relative;overflow:hidden;
+}
+.stat-card::after{content:'';position:absolute;top:0;left:18px;right:18px;height:1px;background:var(--sc,rgba(155,165,135,.22));}
+.stat-card:hover{transform:translateY(-3px);box-shadow:0 10px 24px rgba(0,0,0,.4);border-color:var(--border-h);}
+.stat-big{font-size:1.68rem;font-weight:900;letter-spacing:-.03em;}
+.stat-desc{font-size:.63rem;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:.06em;}
+.stat-note{font-size:.59rem;color:var(--muted);margin-top:2px;opacity:.65;}
+
+/* Russet number badge next to workflow count */
+.stat-russet-tag{
+  display:inline-flex;align-items:center;gap:.3rem;
+  position:absolute;top:.6rem;right:.65rem;
+  background:rgba(184,80,64,.15);border:1px solid rgba(184,80,64,.3);
+  color:var(--russet-l);border-radius:999px;
+  font-size:.6rem;font-weight:700;padding:1px 7px;letter-spacing:.04em;
+}
+.stat-russet-tag-dot{width:5px;height:5px;border-radius:50%;background:var(--russet);flex-shrink:0;animation:wblink 1.4s ease-in-out infinite;}
+
+.filter-bar{display:flex;gap:.7rem;margin-bottom:1.2rem;}
+.filter-bar input,.filter-bar select{
+  background:rgba(0,0,0,.28);border:1px solid var(--border);border-radius:8px;
+  color:var(--text);padding:.45rem .82rem;font-size:.78rem;outline:none;font-family:var(--font);transition:border .2s;}
+.filter-bar input{flex:1;}
+.filter-bar input:focus,.filter-bar select:focus{border-color:rgba(143,164,102,.34);}
+.filter-bar input::placeholder{color:var(--muted);}
+.filter-bar select option{background:#13140f;}
+
+.wf-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.82rem;}
+.wf-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:1rem 1.15rem;
+  transition:transform .2s,box-shadow .2s,background .2s,border-color .2s;
+}
+.wf-card:hover{transform:translateY(-4px) scale(1.007);box-shadow:0 14px 30px rgba(0,0,0,.44);background:var(--surface-h);border-color:var(--border-h);}
+
+.badge{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:999px;font-size:.61rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;}
+.badge svg{width:9px;height:9px;stroke:currentColor;stroke-width:2.5;fill:none;}
+.b-ok  {background:rgba(104,168,90,.09); color:var(--green-s); border:1px solid rgba(104,168,90,.28);}
+.b-err {background:rgba(184,80,64,.1);   color:var(--russet-l);border:1px solid rgba(184,80,64,.3);}
+.b-run {background:rgba(184,136,48,.09); color:var(--yellow-s);border:1px solid rgba(184,136,48,.28);}
+.b-idle{background:rgba(82,94,68,.1);    color:var(--muted);   border:1px solid rgba(82,94,68,.22);}
+.run-dot{width:6px;height:6px;border-radius:50%;background:var(--yellow-s);flex-shrink:0;animation:wblink 1.1s ease-in-out infinite;}
+
+.wf-title{font-size:.87rem;font-weight:700;color:#d4d8c2;margin:.43rem 0 .1rem;}
+.wf-sub  {font-size:.67rem;color:var(--muted);margin-bottom:.68rem;display:flex;align-items:center;gap:.3rem;}
+.wf-sub svg{width:10px;height:10px;stroke:currentColor;stroke-width:1.8;fill:none;flex-shrink:0;}
+.metric-row{display:flex;gap:.95rem;}
+.metric{display:flex;flex-direction:column;}
+.metric-val{font-size:1.02rem;font-weight:800;color:#cad0b8;line-height:1.1;}
+.metric-lbl{font-size:.57rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:1px;}
+.wf-foot{margin-top:.68rem;font-size:.64rem;color:var(--muted);}
+.h-strip{display:flex;gap:2px;margin-top:.62rem;}
+.h-bar{width:6px;height:20px;border-radius:3px;flex-shrink:0;opacity:.8;}
+
+/* ══════════════════════════════════════ SYSTEMS */
+.sys-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:.9rem;margin-bottom:1.4rem;}
+.sys-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:1.15rem 1.35rem;
+  transition:transform .2s,box-shadow .2s,background .2s,border-color .2s;
+}
+.sys-card:hover{transform:translateY(-3px);box-shadow:0 12px 28px rgba(0,0,0,.4);background:var(--surface-h);border-color:var(--border-h);}
+.sys-hdr{display:flex;align-items:center;gap:.72rem;margin-bottom:.9rem;}
+.sys-ico{width:36px;height:36px;border-radius:8px;flex-shrink:0;background:rgba(143,164,102,.06);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;}
+.sys-ico svg{width:17px;height:17px;stroke:var(--text-dim);stroke-width:1.7;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+.sys-name{font-size:.86rem;font-weight:700;color:#d4d8c2;}
+.sys-type{font-size:.63rem;color:var(--muted);}
+.sys-pill{margin-left:auto;display:flex;align-items:center;gap:.32rem;padding:2px 8px;border-radius:999px;font-size:.63rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;}
+.sp-on  {background:rgba(104,168,90,.08); color:var(--green-s); border:1px solid rgba(104,168,90,.24);}
+.sp-off {background:rgba(184,80,64,.08);  color:var(--red-s);   border:1px solid rgba(184,80,64,.24);}
+.sp-warn{background:rgba(184,136,48,.08); color:var(--yellow-s);border:1px solid rgba(184,136,48,.24);}
+.sys-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:.62rem;}
+.sys-m{background:rgba(0,0,0,.22);border-radius:7px;padding:.48rem .62rem;text-align:center;}
+.sys-m-val{font-size:.86rem;font-weight:800;color:#cad0b8;}
+.sys-m-lbl{font-size:.56rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:2px;}
+.up-bar{height:3px;background:rgba(255,255,255,.05);border-radius:2px;margin-top:.82rem;overflow:hidden;}
+.up-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--olive-d),var(--olive));}
+
+.c-table{width:100%;border-collapse:collapse;font-size:.76rem;}
+.c-table th{color:var(--muted);font-weight:600;text-transform:uppercase;font-size:.59rem;letter-spacing:.06em;padding:.48rem .68rem;border-bottom:1px solid var(--border);text-align:left;}
+.c-table td{padding:.56rem .68rem;border-bottom:1px solid rgba(143,164,102,.04);color:var(--text);}
+.c-table tr:hover td{background:rgba(143,164,102,.03);}
+.port-tag{background:rgba(143,164,102,.07);color:var(--text-dim);border:1px solid rgba(143,164,102,.16);padding:1px 6px;border-radius:4px;font-size:.62rem;font-family:monospace;}
+
+/* ══════════════════════════════════════ SETTINGS */
+.set-wrap{display:grid;grid-template-columns:165px 1fr;gap:1.15rem;}
+.set-nav{display:flex;flex-direction:column;gap:.15rem;}
+.set-ni{padding:.44rem .8rem;border-radius:8px;font-size:.78rem;color:var(--muted);cursor:pointer;transition:all .18s;border:1px solid transparent;display:flex;align-items:center;gap:.42rem;}
+.set-ni svg{width:13px;height:13px;stroke:currentColor;stroke-width:1.8;fill:none;flex-shrink:0;}
+.set-ni:hover{color:var(--text);background:rgba(143,164,102,.06);}
+.set-ni.active{color:var(--olive-l);background:rgba(143,164,102,.08);border-color:rgba(143,164,102,.18);}
+.set-panel{display:flex;flex-direction:column;gap:1rem;}
+.set-group{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.15rem 1.35rem;}
+.sg-title{font-size:.63rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.82rem;}
+.field{display:flex;flex-direction:column;gap:.28rem;margin-bottom:.78rem;}
+.field:last-child{margin-bottom:0;}
+.field label{font-size:.7rem;color:var(--text-dim);font-weight:500;}
+.field input,.field select,.field textarea{background:rgba(0,0,0,.28);border:1px solid var(--border);border-radius:7px;color:var(--text);padding:.44rem .8rem;font-size:.78rem;font-family:var(--font);outline:none;transition:border .2s;}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:rgba(143,164,102,.34);}
+.field textarea{resize:vertical;min-height:98px;line-height:1.55;}
+.field select option{background:#13140f;}
+.tog-row{display:flex;align-items:center;justify-content:space-between;padding:.22rem 0;}
+.tog-row span{font-size:.77rem;color:var(--text);}
+.toggle{position:relative;width:33px;height:18px;}
+.toggle input{opacity:0;width:0;height:0;}
+.slider{position:absolute;inset:0;background:rgba(255,255,255,.09);border-radius:999px;cursor:pointer;transition:.25s;}
+.slider:before{content:'';position:absolute;width:12px;height:12px;left:3px;bottom:3px;background:#888;border-radius:50%;transition:.25s;}
+.toggle input:checked+.slider{background:var(--olive-d);}
+.toggle input:checked+.slider:before{transform:translateX(15px);background:var(--olive-l);}
+.btn-pri{background:linear-gradient(135deg,var(--olive-d),var(--olive));border:none;border-radius:8px;color:#0c1608;padding:.48rem 1.2rem;font-size:.76rem;font-weight:700;cursor:pointer;font-family:var(--font);transition:opacity .2s,transform .15s;margin-top:.28rem;}
+.btn-pri:hover{opacity:.86;transform:translateY(-1px);}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ══ SIDEBAR ══ -->
+<aside class="sidebar" id="sidebar">
+  <div class="sb-btn" onclick="toggleSB()">
+    <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+  </div>
+
+  <!-- Neural-net logo SVG -->
+  <div class="sb-logo">
+    <div class="sb-logo-icon">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- nodes -->
+        <circle cx="4"  cy="8"  r="2.2" fill="#8fa466" opacity=".9"/>
+        <circle cx="4"  cy="20" r="2.2" fill="#8fa466" opacity=".9"/>
+        <circle cx="14" cy="4"  r="2.2" fill="#adc07a"/>
+        <circle cx="14" cy="14" r="2.5" fill="#adc07a"/>
+        <circle cx="14" cy="24" r="2.2" fill="#adc07a"/>
+        <circle cx="24" cy="8"  r="2.2" fill="#8fa466" opacity=".9"/>
+        <circle cx="24" cy="20" r="2.2" fill="#8fa466" opacity=".9"/>
+        <!-- edges -->
+        <line x1="4"  y1="8"  x2="14" y2="4"  stroke="#6a7e52" stroke-width="1.1" opacity=".7"/>
+        <line x1="4"  y1="8"  x2="14" y2="14" stroke="#6a7e52" stroke-width="1.1" opacity=".7"/>
+        <line x1="4"  y1="20" x2="14" y2="14" stroke="#6a7e52" stroke-width="1.1" opacity=".7"/>
+        <line x1="4"  y1="20" x2="14" y2="24" stroke="#6a7e52" stroke-width="1.1" opacity=".7"/>
+        <line x1="14" y1="4"  x2="24" y2="8"  stroke="#6a7e52" stroke-width="1.1" opacity=".7"/>
+        <line x1="14" y1="14" x2="24" y2="8"  stroke="#6a7e52" stroke-width="1.1" opacity=".7"/>
+        <line x1="14" y1="14" x2="24" y2="20" stroke="#6a7e52" stroke-width="1.1" opacity=".7"/>
+        <line x1="14" y1="24" x2="24" y2="20" stroke="#6a7e52" stroke-width="1.1" opacity=".7"/>
+      </svg>
+    </div>
+    <div class="sb-logo-text">
+      <strong>Roy Kent</strong>
+      <small>AI Operations</small>
+    </div>
+  </div>
+
+  <div class="nav-wrap">
+
+    <!-- Chat -->
+    <div class="nav-item active" id="ni-chat" onclick="nav(event,'chat')">
+      <span class="nav-icon">
+        <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      </span>
+      <span class="nav-lbl">Chat</span>
+      <span class="nav-tip">Chat · Roy Kent</span>
+    </div>
+
+    <!-- Workflows — has error badge -->
+    <div class="nav-item" id="ni-workflows" onclick="nav(event,'workflows')">
+      <span class="nav-icon">
+        <svg viewBox="0 0 24 24"><rect x="2" y="3" width="6" height="6" rx="1"/><rect x="16" y="3" width="6" height="6" rx="1"/><rect x="9" y="15" width="6" height="6" rx="1"/><path d="M5 9v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9M12 14v1"/></svg>
+        <!-- badge always on icon -->
+        <span class="nav-icon-badge err" id="wf-icon-badge"></span>
+      </span>
+      <span class="nav-lbl">Workflows</span>
+      <span class="nav-badge-open">1 error</span>
+      <span class="nav-tip">Workflows · 1 error</span>
+    </div>
+
+    <!-- Systems -->
+    <div class="nav-item" id="ni-systems" onclick="nav(event,'systems')">
+      <span class="nav-icon">
+        <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        <span class="nav-icon-badge warn" id="sys-icon-badge"></span>
+      </span>
+      <span class="nav-lbl">Systems</span>
+      <span class="nav-badge-open" style="background:var(--yellow-s)">2 warn</span>
+      <span class="nav-tip">Systems · 2 warnings</span>
+    </div>
+
+    <!-- Settings -->
+    <div class="nav-item" id="ni-settings" onclick="nav(event,'settings')">
+      <span class="nav-icon">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </span>
+      <span class="nav-lbl">Settings</span>
+      <span class="nav-tip">Settings</span>
+    </div>
+
+  </div>
+
+  <div class="sb-foot">
+    <div class="ss-row"><div class="ss-dot on"></div><span class="ss-lbl">n8n · :5678</span></div>
+    <div class="ss-row"><div class="ss-dot on"></div><span class="ss-lbl">LM Studio · :1234</span></div>
+    <div class="ss-row"><div class="ss-dot off"></div><span class="ss-lbl">Ollama · :11434</span></div>
+    <div class="ss-row"><div class="ss-dot warn"></div><span class="ss-lbl">Redis · :6379</span></div>
+  </div>
+</aside>
+
+<!-- ══ MAIN ══ -->
+<main class="main">
+
+  <!-- ─── CHAT ─── -->
+  <div class="section active" id="sec-chat">
+    <div class="page-hd">
+      <div class="page-title">
+        <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        Chat with Roy Kent
+      </div>
+      <div class="page-sub">Local AI agent · Qwen2.5-14B via LM Studio · Infrastructure-aware</div>
+    </div>
+    <div class="chat-layout" style="flex:1;min-height:0;">
+      <div class="chat-panel">
+        <div class="chat-hdr">
+          <div class="agent-av">
+            <!-- reuse neural-net icon for agent avatar -->
+            <svg width="17" height="17" viewBox="0 0 28 28" fill="none">
+              <circle cx="4"  cy="8"  r="2.2" fill="#8fa466" opacity=".9"/>
+              <circle cx="4"  cy="20" r="2.2" fill="#8fa466" opacity=".9"/>
+              <circle cx="14" cy="4"  r="2.2" fill="#adc07a"/>
+              <circle cx="14" cy="14" r="2.5" fill="#adc07a"/>
+              <circle cx="14" cy="24" r="2.2" fill="#adc07a"/>
+              <circle cx="24" cy="8"  r="2.2" fill="#8fa466" opacity=".9"/>
+              <circle cx="24" cy="20" r="2.2" fill="#8fa466" opacity=".9"/>
+              <line x1="4"  y1="8"  x2="14" y2="4"  stroke="#6a7e52" stroke-width="1.2"/>
+              <line x1="4"  y1="8"  x2="14" y2="14" stroke="#6a7e52" stroke-width="1.2"/>
+              <line x1="4"  y1="20" x2="14" y2="14" stroke="#6a7e52" stroke-width="1.2"/>
+              <line x1="4"  y1="20" x2="14" y2="24" stroke="#6a7e52" stroke-width="1.2"/>
+              <line x1="14" y1="4"  x2="24" y2="8"  stroke="#6a7e52" stroke-width="1.2"/>
+              <line x1="14" y1="14" x2="24" y2="8"  stroke="#6a7e52" stroke-width="1.2"/>
+              <line x1="14" y1="14" x2="24" y2="20" stroke="#6a7e52" stroke-width="1.2"/>
+              <line x1="14" y1="24" x2="24" y2="20" stroke="#6a7e52" stroke-width="1.2"/>
+            </svg>
+            <div class="av-ring"></div>
+          </div>
+          <div>
+            <div class="chat-hdr-name">Roy Kent</div>
+            <div class="chat-hdr-sub">Qwen2.5-14B-Instruct &nbsp;·&nbsp; localhost:1234 &nbsp;·&nbsp; 32k ctx</div>
+          </div>
+          <div class="chat-hdr-pill"><div class="pill-dot"></div>Online</div>
+        </div>
+
+        <div class="ticker">
+          <div class="ticker-dot"></div>
+          <span class="ticker-txt" id="ticker-txt">Monitoring infrastructure · 1 workflow error · Redis degraded · LM Studio active · 312 tok/s</span>
+        </div>
+
+        <div class="chat-tl" id="chat-tl"></div>
+
+        <div class="chat-inp-wrap">
+          <textarea class="chat-inp" id="chat-inp" rows="1"
+            placeholder="Message Roy Kent…  (Enter to send)"
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg();}"></textarea>
+          <button class="send-btn" onclick="sendMsg()">
+            <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="chat-side">
+        <!-- Model info -->
+        <div class="side-card">
+          <div class="side-title"><svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>Active Model</div>
+          <div class="info-row"><span>Model</span><span class="v-g" id="si-model">local-model</span></div>
+          <div class="info-row"><span>Context</span><span>32 768 tok</span></div>
+          <div class="info-row"><span>Temperature</span><span>0.7</span></div>
+          <div class="info-row"><span>Endpoint</span><span style="font-family:monospace;color:var(--text-dim);font-size:.69rem">:1234/v1</span></div>
+        </div>
+        <!-- Quick prompts -->
+        <div class="side-card">
+          <div class="side-title"><svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Quick Prompts</div>
+          <div class="qps">
+            <div class="qp" onclick="setP('Analizza i workflow in errore e suggerisci fix')"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>Analizza errori</div>
+            <div class="qp" onclick="setP('Genera un report di salute del sistema per oggi')"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>System health</div>
+            <div class="qp" onclick="setP('Crea un nuovo workflow n8n per...')"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="6" height="6" rx="1"/><rect x="16" y="3" width="6" height="6" rx="1"/><rect x="9" y="15" width="6" height="6" rx="1"/><path d="M5 9v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9M12 14v1"/></svg>Nuovo workflow</div>
+            <div class="qp" onclick="setP('Stato infrastruttura attuale?')"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>Infrastructure status</div>
+          </div>
+        </div>
+        <!-- Session -->
+        <div class="side-card">
+          <div class="side-title"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Session</div>
+          <div class="info-row"><span>Messaggi</span><span id="msg-count">0</span></div>
+          <div class="info-row"><span>Est. tokens</span><span id="tok-count">~0</span></div>
+          <button class="btn-ghost" onclick="clearChat()">Nuova sessione</button>
+        </div>
+        <!-- Tool calls log -->
+        <div class="side-card" style="flex:1;display:flex;flex-direction:column;min-height:0;">
+          <div class="side-title" style="flex-shrink:0">
+            <svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+            Tool Calls
+            <span id="tool-badge" style="margin-left:auto;font-size:.6rem;font-weight:700;color:var(--muted)">0</span>
+          </div>
+          <div id="tool-log" style="flex:1;overflow-y:auto;margin:0 -.1rem;">
+            <div style="color:var(--muted);font-size:.7rem;text-align:center;padding:1.2rem 0">Nessuna tool call ancora</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── WORKFLOWS ─── -->
+  <div class="section" id="sec-workflows">
+    <div class="page-hd">
+      <div class="page-title">
+        <svg viewBox="0 0 24 24"><rect x="2" y="3" width="6" height="6" rx="1"/><rect x="16" y="3" width="6" height="6" rx="1"/><rect x="9" y="15" width="6" height="6" rx="1"/><path d="M5 9v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9M12 14v1"/></svg>
+        Workflow Monitor
+      </div>
+      <div class="page-sub">n8n execution overview · last updated 14:32:05</div>
+    </div>
+    <div class="stat-row">
+      <div class="stat-card" style="--sc:rgba(155,165,135,.2)">
+        <div class="stat-big" style="color:var(--text-dim)">12</div>
+        <div class="stat-desc">Total</div>
+      </div>
+      <div class="stat-card" style="--sc:rgba(184,136,48,.3)">
+        <div class="stat-big" style="color:var(--yellow-s)">3</div>
+        <div class="stat-desc">Running</div>
+        <div class="stat-note">right now</div>
+      </div>
+      <!-- Errors card — russet accent with animated badge -->
+      <div class="stat-card" style="--sc:rgba(184,80,64,.35)">
+        <div class="stat-russet-tag">
+          <div class="stat-russet-tag-dot"></div>live
+        </div>
+        <div class="stat-big" style="color:var(--russet-l)">1</div>
+        <div class="stat-desc" style="color:var(--russet)">Error</div>
+        <div class="stat-note">Lead Enrichment</div>
+      </div>
+      <div class="stat-card" style="--sc:rgba(104,168,90,.3)">
+        <div class="stat-big" style="color:var(--green-s)">94.2%</div>
+        <div class="stat-desc">Avg success</div>
+      </div>
+    </div>
+    <div class="filter-bar">
+      <input type="text" id="wf-search" placeholder="Search workflows…" oninput="filterWF()">
+      <select id="wf-filter" onchange="filterWF()">
+        <option>All</option><option>success</option><option>error</option><option>running</option><option>idle</option>
+      </select>
+    </div>
+    <div class="wf-grid" id="wf-grid"></div>
+  </div>
+
+  <!-- ─── SYSTEMS ─── -->
+  <div class="section" id="sec-systems">
+    <div class="page-hd">
+      <div class="page-title">
+        <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        Systems Status
+      </div>
+      <div class="page-sub">Local process monitoring · health check every 30 s</div>
+    </div>
+    <div class="sys-grid">
+      <div class="sys-card">
+        <div class="sys-hdr"><div class="sys-ico"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="6" height="6" rx="1"/><rect x="16" y="3" width="6" height="6" rx="1"/><rect x="9" y="15" width="6" height="6" rx="1"/><path d="M5 9v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9M12 14v1"/></svg></div><div><div class="sys-name">n8n</div><div class="sys-type">Workflow Engine · localhost:5678</div></div><div class="sys-pill sp-on"><div class="p-dot g" style="width:5px;height:5px"></div>Online</div></div>
+        <div class="sys-metrics"><div class="sys-m"><div class="sys-m-val">247</div><div class="sys-m-lbl">Exec/h</div></div><div class="sys-m"><div class="sys-m-val">128 MB</div><div class="sys-m-lbl">RAM</div></div><div class="sys-m"><div class="sys-m-val">99.8%</div><div class="sys-m-lbl">Uptime</div></div></div>
+        <div class="up-bar"><div class="up-fill" style="width:99.8%"></div></div>
+      </div>
+      <div class="sys-card">
+        <div class="sys-hdr"><div class="sys-ico"><svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div><div><div class="sys-name">LM Studio</div><div class="sys-type">Local LLM Server · localhost:1234</div></div><div class="sys-pill sp-on"><div class="p-dot g" style="width:5px;height:5px"></div>Online</div></div>
+        <div class="sys-metrics"><div class="sys-m"><div class="sys-m-val">Qwen2.5</div><div class="sys-m-lbl">Model</div></div><div class="sys-m"><div class="sys-m-val">6.4 GB</div><div class="sys-m-lbl">VRAM</div></div><div class="sys-m"><div class="sys-m-val">312 t/s</div><div class="sys-m-lbl">Throughput</div></div></div>
+        <div class="up-bar"><div class="up-fill" style="width:100%"></div></div>
+      </div>
+      <div class="sys-card">
+        <div class="sys-hdr"><div class="sys-ico"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg></div><div><div class="sys-name">Ollama</div><div class="sys-type">Model Runner · localhost:11434</div></div><div class="sys-pill sp-off">Offline</div></div>
+        <div class="sys-metrics"><div class="sys-m"><div class="sys-m-val">—</div><div class="sys-m-lbl">Model</div></div><div class="sys-m"><div class="sys-m-val">0 MB</div><div class="sys-m-lbl">VRAM</div></div><div class="sys-m"><div class="sys-m-val">—</div><div class="sys-m-lbl">Uptime</div></div></div>
+        <div class="up-bar"><div class="up-fill" style="width:0;background:var(--red-s)"></div></div>
+      </div>
+      <div class="sys-card">
+        <div class="sys-hdr"><div class="sys-ico"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div><div class="sys-name">Redis</div><div class="sys-type">Cache / Queue · localhost:6379</div></div><div class="sys-pill sp-warn"><div class="p-dot a" style="width:5px;height:5px"></div>Degraded</div></div>
+        <div class="sys-metrics"><div class="sys-m"><div class="sys-m-val">14.2k</div><div class="sys-m-lbl">Keys</div></div><div class="sys-m"><div class="sys-m-val">48 MB</div><div class="sys-m-lbl">RAM</div></div><div class="sys-m"><div class="sys-m-val">97.1%</div><div class="sys-m-lbl">Hit rate</div></div></div>
+        <div class="up-bar"><div class="up-fill" style="width:97%;background:linear-gradient(90deg,var(--brown),var(--amber))"></div></div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:0">
+      <div class="sg-title" style="margin-bottom:.82rem">Custom Services</div>
+      <table class="c-table">
+        <thead><tr><th>Service</th><th>Endpoint</th><th>Port</th><th>Status</th><th>Latency</th><th>Last check</th></tr></thead>
+        <tbody>
+          <tr><td>Webhook Gateway</td><td>/api/webhook</td><td><span class="port-tag">3001</span></td><td><span class="badge b-ok"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Online</span></td><td>12 ms</td><td>5 s ago</td></tr>
+          <tr><td>Qdrant</td><td>/qdrant</td><td><span class="port-tag">6333</span></td><td><span class="badge b-ok"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Online</span></td><td>8 ms</td><td>5 s ago</td></tr>
+          <tr><td>Postgres</td><td>localhost</td><td><span class="port-tag">5432</span></td><td><span class="badge b-ok"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Online</span></td><td>2 ms</td><td>5 s ago</td></tr>
+          <tr><td>FastAPI Backend</td><td>/api/v1</td><td><span class="port-tag">8000</span></td><td><span class="badge b-run"><div class="run-dot"></div>Restarting</span></td><td>—</td><td>22 s ago</td></tr>
+          <tr><td>MinIO Storage</td><td>/minio</td><td><span class="port-tag">9000</span></td><td><span class="badge b-err"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Offline</span></td><td>—</td><td>3 m ago</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ─── SETTINGS ─── -->
+  <div class="section" id="sec-settings">
+    <div class="page-hd">
+      <div class="page-title">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        Settings
+      </div>
+      <div class="page-sub">Agent configuration, system prompt and connections</div>
+    </div>
+    <div class="set-wrap">
+      <div class="set-nav">
+        <div class="set-ni active" onclick="setNav(this,'sp-agent')"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3"/></svg>System Prompt</div>
+        <div class="set-ni" onclick="setNav(this,'sp-conn')"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>Connections</div>
+        <div class="set-ni" onclick="setNav(this,'sp-mon')"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Monitor</div>
+        <div class="set-ni" onclick="setNav(this,'sp-look')"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>Appearance</div>
+      </div>
+      <div class="set-panel">
+        <div id="sp-agent" class="spanel">
+          <div class="set-group">
+            <div class="sg-title">Agent Identity</div>
+            <div class="field"><label>Agent name</label><input type="text" value="Roy Kent"></div>
+            <div class="field"><label>LM Studio model</label><select><option>Qwen2.5-14B-Instruct</option><option>Llama-3.1-8B</option><option>Mistral-7B-Instruct</option><option>DeepSeek-R1-7B</option></select></div>
+            <div class="field"><label>Temperature</label><input type="number" value="0.7" min="0" max="2" step="0.05"></div>
+            <div class="field"><label>Max tokens</label><input type="number" value="2048"></div>
+          </div>
+          <div class="set-group">
+            <div class="sg-title">System Prompt</div>
+            <div class="field"><label>Primary prompt</label>
+              <textarea>You are Roy Kent — direct, precise, no nonsense. Local AI assistant with full awareness of the connected infrastructure: n8n workflows, LM Studio, system services and execution history.
+
+Style: concise, no filler. Technical when needed. Flag anomalies proactively. Respond in the user's language.
+
+Context: n8n :5678 (12 workflows, 1 error) · LM Studio :1234 (Qwen2.5-14B, 312 tok/s) · Postgres · Redis (degraded) · Qdrant · FastAPI (restarting)</textarea>
+            </div>
+            <div class="field"><label>Injected context (prepended to every message)</label>
+              <textarea placeholder="e.g. Today is {date}. Errors: {list}…" style="min-height:58px"></textarea></div>
+            <button class="btn-pri">Save configuration</button>
+          </div>
+        </div>
+        <div id="sp-conn" class="spanel" style="display:none">
+          <div class="set-group"><div class="sg-title">LM Studio</div><div class="field"><label>Base URL</label><input type="text" value="http://localhost:1234/v1"></div><div class="field"><label>API key</label><input type="password" placeholder="sk-…"></div></div>
+          <div class="set-group"><div class="sg-title">n8n</div><div class="field"><label>Base URL</label><input type="text" value="http://localhost:5678"></div><div class="field"><label>API key</label><input type="password" placeholder="n8n_api_key_…"></div></div>
+          <div class="set-group"><div class="sg-title">Custom Services</div><div class="field"><label>Webhook Gateway</label><input type="text" value="http://localhost:3001"></div><div class="field"><label>Qdrant</label><input type="text" value="http://localhost:6333"></div><div class="field"><label>Postgres DSN</label><input type="text" value="postgresql://user:pass@localhost:5432/db"></div><button class="btn-pri">Save &amp; test</button></div>
+        </div>
+        <div id="sp-mon" class="spanel" style="display:none">
+          <div class="set-group"><div class="sg-title">Refresh &amp; Alerts</div>
+            <div class="field"><label>Auto-refresh interval</label><select><option>5 s</option><option>10 s</option><option selected>30 s</option><option>1 min</option></select></div>
+            <div class="tog-row"><span>Browser notifications on error</span><label class="toggle"><input type="checkbox" checked><span class="slider"></span></label></div>
+            <div class="tog-row"><span>Audio alert on failure</span><label class="toggle"><input type="checkbox"><span class="slider"></span></label></div>
+            <div class="tog-row"><span>Run history bars on cards</span><label class="toggle"><input type="checkbox" checked><span class="slider"></span></label></div>
+            <div class="tog-row"><span>Error badge in sidebar</span><label class="toggle"><input type="checkbox" checked><span class="slider"></span></label></div>
+            <button class="btn-pri">Save</button>
+          </div>
+        </div>
+        <div id="sp-look" class="spanel" style="display:none">
+          <div class="set-group"><div class="sg-title">Theme &amp; Layout</div>
+            <div class="field"><label>Colour scheme</label><select><option selected>Earthy Dark</option><option>Deep Moss</option><option>Warm Stone</option></select></div>
+            <div class="tog-row"><span>Glassmorphism</span><label class="toggle"><input type="checkbox" checked><span class="slider"></span></label></div>
+            <div class="tog-row"><span>Hover animations</span><label class="toggle"><input type="checkbox" checked><span class="slider"></span></label></div>
+            <div class="tog-row"><span>Timeline chat view</span><label class="toggle"><input type="checkbox" checked><span class="slider"></span></label></div>
+            <div class="tog-row"><span>Collapsible sidebar</span><label class="toggle"><input type="checkbox" checked><span class="slider"></span></label></div>
+            <div class="tog-row"><span>Status ticker</span><label class="toggle"><input type="checkbox" checked><span class="slider"></span></label></div>
+            <button class="btn-pri">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+</div>
+
+<script>
+// ── Sidebar ──────────────────────────────────────────────
+function toggleSB(){ document.getElementById('sidebar').classList.toggle('open'); }
+
+// ── Nav ──────────────────────────────────────────────────
+function nav(e, id){
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('sec-'+id).classList.add('active');
+  e.currentTarget.classList.add('active');
+}
+
+// ── Workflows ────────────────────────────────────────────
+const WF=[
+  {n:'Slack → Notion Sync',t:'Webhook',f:'Every 5 min',s:'success',r:248,sr:99.2,d:'1.4 s',a:'2 min ago',h:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]},
+  {n:'GitHub CI Notifier',t:'GitHub',f:'On push',s:'running',r:87,sr:97.1,d:'3.2 s',a:'12 s ago',h:[1,1,1,1,1,1,1,0,1,1,1,1,1,1,1]},
+  {n:'Daily Sales Report',t:'Schedule',f:'09:00 daily',s:'success',r:1,sr:100,d:'12.7 s',a:'3 h ago',h:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]},
+  {n:'Lead Enrichment',t:'Form',f:'On submit',s:'error',r:34,sr:61.8,d:'7.1 s',a:'18 min ago',h:[1,0,1,0,1,1,0,1,0,1,1,0,1,0,1]},
+  {n:'Invoice Auto-Sender',t:'Schedule',f:'1st of month',s:'idle',r:0,sr:100,d:'2 m 4 s',a:'19 d ago',h:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]},
+  {n:'Support Ticket Router',t:'Email',f:'On receive',s:'running',r:156,sr:95.5,d:'0.9 s',a:'5 s ago',h:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]},
+  {n:'Inventory Alert',t:'Cron',f:'Every 1 h',s:'success',r:22,sr:100,d:'4.3 s',a:'42 min ago',h:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]},
+  {n:'Churn Predictor',t:'Schedule',f:'Weekly Mon',s:'idle',r:0,sr:98,d:'1 m 52 s',a:'4 d ago',h:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]},
+  {n:'Social Publisher',t:'Manual',f:'On demand',s:'success',r:5,sr:100,d:'6.8 s',a:'1 h ago',h:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]},
+  {n:'Data Backup',t:'Cron',f:'00:00 daily',s:'running',r:1,sr:91.3,d:'8 m 11 s',a:'8 min ago',h:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]},
+  {n:'Stripe Webhook',t:'Webhook',f:'On event',s:'success',r:301,sr:99.7,d:'0.6 s',a:'30 s ago',h:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]},
+  {n:'HubSpot → Airtable',t:'Schedule',f:'Every 15 min',s:'success',r:91,sr:96.7,d:'2.1 s',a:'7 min ago',h:[1,1,1,1,1,1,0,1,1,1,1,1,1,1,1]},
+];
+const iOk=`<svg viewBox="0 0 24 24" style="width:9px;height:9px;stroke:currentColor;stroke-width:2.5;fill:none"><polyline points="20 6 9 17 4 12"/></svg>`;
+const iX =`<svg viewBox="0 0 24 24" style="width:9px;height:9px;stroke:currentColor;stroke-width:2.5;fill:none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+const iBolt=`<svg viewBox="0 0 24 24" style="width:10px;height:10px;stroke:currentColor;stroke-width:1.8;fill:none"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`;
+const iClk =`<svg viewBox="0 0 24 24" style="width:10px;height:10px;stroke:currentColor;stroke-width:1.8;fill:none"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`;
+function mkB(s){
+  return{
+    success:`<span class="badge b-ok">${iOk}Success</span>`,
+    error:  `<span class="badge b-err">${iX}Error</span>`,
+    running:`<span class="badge b-run"><div class="run-dot"></div>Running</span>`,
+    idle:   `<span class="badge b-idle">Idle</span>`,
+  }[s];
+}
+function renderWF(d){
+  return`<div class="wf-card">${mkB(d.s)}<div class="wf-title">${d.n}</div>
+  <div class="wf-sub">${iBolt}${d.t}<span style="opacity:.3">·</span>${iClk}${d.f}</div>
+  <div class="metric-row">
+    <div class="metric"><span class="metric-val">${d.r}</span><span class="metric-lbl">Runs today</span></div>
+    <div class="metric"><span class="metric-val">${d.sr}%</span><span class="metric-lbl">Success</span></div>
+    <div class="metric"><span class="metric-val">${d.d}</span><span class="metric-lbl">Duration</span></div>
+  </div>
+  <div class="h-strip">${d.h.map(v=>`<div class="h-bar" style="background:${v?'var(--green-s)':'var(--russet)'}"></div>`).join('')}</div>
+  <div class="wf-foot">Last run: ${d.a}</div></div>`;
+}
+function filterWF(){
+  const q=document.getElementById('wf-search').value.toLowerCase();
+  const f=document.getElementById('wf-filter').value;
+  document.getElementById('wf-grid').innerHTML=
+    WF.filter(w=>(f==='All'||w.s===f)&&(!q||w.n.toLowerCase().includes(q))).map(renderWF).join('');
+}
+filterWF();
+
+// ── Config ───────────────────────────────────────────────
+const CFG = {
+  proxyUrl: 'http://localhost:3333',      // Roy Kent Proxy
+  lmUrl:   'http://localhost:1234/v1',   // solo per fetch modelli
+  model:   'local-model',
+  sysPrompt: `Sei Roy Kent — diretto, preciso, senza fronzoli. Sei un agente AI locale con piena consapevolezza dell'infrastruttura: n8n workflows, LM Studio, servizi di sistema.
+Stile: conciso, tecnico quando serve, segnala anomalie proattivamente. Rispondi nella lingua dell'utente.
+Contesto: n8n :5678 · LM Studio :1234 · Postgres · Redis (degraded) · Qdrant · FastAPI (restarting)`
+};
+
+// ── State ────────────────────────────────────────────────
+const MSGS = [];
+let tokEst = 0;
+let isStreaming = false;
+const toolCalls = []; // log tool calls
+
+// ── Utils ────────────────────────────────────────────────
+function nowStr(){return new Date().toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});}
+function todayStr(){return'Oggi · '+new Date().toLocaleDateString('it-IT',{day:'numeric',month:'short'});}
+const calSVG=`<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`;
+
+// ── Render timeline ──────────────────────────────────────
+function renderTL(){
+  const tl = document.getElementById('chat-tl');
+  let html = '', prev = '';
+  MSGS.forEach(m => {
+    if(m.dt !== prev){
+      html += `<div class="tl-sep"><div class="tl-pill">${calSVG}${m.dt}</div></div>`;
+      prev = m.dt;
+    }
+    const u = m.r === 'user';
+    html += `<div class="tl-row${u?' user':''}">
+      ${!u?`<div class="tl-col"><span class="tl-ts">${m.ts}</span><div class="tl-node"></div></div>`:''}
+      <div class="tl-body"><div class="tl-sender">${u?'You':'Roy Kent'}</div>
+        <div class="tl-bubble" id="msg-${m.id}">${m.txt||''}</div></div>
+      ${u?`<div class="tl-col"><span class="tl-ts">${m.ts}</span><div class="tl-node"></div></div>`:''}
+    </div>`;
+  });
+  tl.innerHTML = html;
+  tl.scrollTop = tl.scrollHeight;
+  document.getElementById('msg-count').textContent = MSGS.length;
+  document.getElementById('tok-count').textContent = '~' + tokEst;
+}
+
+// ── Tool calls panel ─────────────────────────────────────
+function addToolLog(name, status, detail=''){
+  const ts = nowStr();
+  toolCalls.unshift({name, status, detail, ts});
+  if(toolCalls.length > 20) toolCalls.pop();
+  renderToolPanel();
+}
+function renderToolPanel(){
+  const el = document.getElementById('tool-log');
+  const badge = document.getElementById('tool-badge');
+  if(!el) return;
+  if(badge) badge.textContent = toolCalls.length;
+  if(!toolCalls.length){
+    el.innerHTML = `<div style="color:var(--muted);font-size:.7rem;text-align:center;padding:1.2rem 0">Nessuna tool call ancora</div>`;
+    return;
+  }
+  el.innerHTML = toolCalls.map(t=>{
+    const c = t.status==='ok'?'var(--green-s)':t.status==='err'?'var(--russet)':'var(--amber)';
+    const label = t.status==='ok'?'✓':t.status==='err'?'✗':'…';
+    return `<div style="padding:.44rem .65rem;border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:.38rem">
+        <span style="width:14px;height:14px;border-radius:50%;background:${c};color:#0c1608;font-size:.58rem;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0">${label}</span>
+        <span style="font-size:.74rem;font-weight:600;color:var(--text);font-family:monospace">${t.name}</span>
+        <span style="margin-left:auto;font-size:.6rem;color:var(--muted);white-space:nowrap">${t.ts}</span>
+      </div>
+      ${t.detail?`<div style="font-size:.63rem;color:var(--text-dim);padding-left:22px;font-family:monospace;opacity:.75;margin-top:2px;word-break:break-all">${t.detail}</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+// Auto-fetch modello attivo da LM Studio
+async function fetchActiveModel(){
+  try{
+    const r = await fetch(`${CFG.lmUrl}/models`);
+    if(!r.ok) return;
+    const d = await r.json();
+    const m = d.data?.[0]?.id;
+    if(m){
+      CFG.model = m;
+      const el = document.getElementById('si-model');
+      if(el) el.textContent = m.split('/').pop().replace(/\.gguf$/i,'');
+    }
+  }catch(e){}
+}
+fetchActiveModel();
+
+// ── Send message → Proxy (gestisce tool_calls) ──────────
+async function sendMsg(){
+  const inp = document.getElementById('chat-inp');
+  const txt = inp.value.trim();
+  if(!txt || isStreaming) return;
+
+  const t = nowStr(), d = todayStr();
+  const uid = Date.now();
+  MSGS.push({r:'user', txt, ts:t, dt:d, id:'u'+uid});
+  tokEst += Math.round(txt.length / 3);
+  inp.value = '';
+  isStreaming = true;
+
+  const aid = 'a' + uid;
+  MSGS.push({r:'ai', txt:`<div class="typing-dots"><span></span><span></span><span></span></div>`, ts:t, dt:d, id:aid});
+  renderTL();
+
+  const messages = [
+    {role:'system', content: CFG.sysPrompt},
+    ...MSGS
+      .filter(m => m.id !== aid && m.r !== undefined)
+      .slice(-20)
+      .map(m => ({role: m.r==='user'?'user':'assistant', content: m.txt.replace(/<[^>]*>/g,'')}))
+  ];
+
+  try {
+    addToolLog('proxy /chat', 'pending', `→ ${CFG.proxyUrl}`);
+
+    const res = await fetch(`${CFG.proxyUrl}/chat`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ messages, model: CFG.model, temperature: 0.7, max_tokens: 2048 })
+    });
+
+    if(!res.ok) throw new Error(`Proxy HTTP ${res.status} — avvia proxy su :3333`);
+
+    const data = await res.json();
+
+    // Mostra tool calls eseguiti dal proxy nel pannello laterale
+    (data.tool_calls_log || []).forEach(tc => {
+      addToolLog(tc.name, 'ok', JSON.stringify(tc.args).slice(0,80));
+    });
+
+    const finalText = data.content || '(nessuna risposta)';
+    const idx = MSGS.findIndex(m => m.id === aid);
+    if(idx !== -1) MSGS[idx].txt = finalText;
+    tokEst += data.usage?.completion_tokens || Math.round(finalText.length / 4);
+    addToolLog('proxy /chat', 'ok', `${data.tool_calls_log?.length||0} tool eseguiti`);
+
+  } catch(err){
+    const idx = MSGS.findIndex(m => m.id === aid);
+    if(idx !== -1) MSGS[idx].txt = `⚠️ ${err.message}`;
+    addToolLog('proxy /chat', 'err', err.message);
+  }
+
+  isStreaming = false;
+  renderTL();
+}
+
+function setP(p){document.getElementById('chat-inp').value=p;document.getElementById('chat-inp').focus();}
+
+function clearChat(){
+  MSGS.length=0; tokEst=0;
+  MSGS.push({r:'ai', txt:'Nuova sessione. Di cosa hai bisogno?', ts:nowStr(), dt:todayStr(), id:'init'});
+  renderTL();
+}
+
+// ── Init ─────────────────────────────────────────────────
+MSGS.push({r:'ai', txt:'Pronto. Infrastruttura monitorata. Digita un messaggio o usa i prompt suggeriti.', ts:nowStr(), dt:todayStr(), id:'init'});
+renderTL();
+renderToolPanel();
+
+// ── Settings nav ────────────────────────────────────────
+function setNav(el,id){
+  document.querySelectorAll('.set-ni').forEach(i=>i.classList.remove('active'));
+  document.querySelectorAll('.spanel').forEach(p=>p.style.display='none');
+  el.classList.add('active');
+  const p=document.getElementById(id);p.style.display='flex';p.style.flexDirection='column';p.style.gap='1rem';
+}
+
+// ── Ticker ──────────────────────────────────────────────
+const ticks=[
+  'Monitoring infrastructure · 1 workflow error · Redis degraded · LM Studio active · 312 tok/s',
+  'Lead Enrichment Pipeline — 61.8% success rate · check upstream API',
+  'FastAPI backend restarting · 4 cycles in 6 h · review background task scheduler',
+  'n8n 247 exec/h · Stripe Webhook 301 runs today · Postgres nominal',
+];
+let ti=0;
+setInterval(()=>{ti=(ti+1)%ticks.length;document.getElementById('ticker-txt').textContent=ticks[ti];},5000);
+</script>
+</body>
+</html>
