@@ -903,8 +903,8 @@ const CFG = {
   proxyUrl: 'http://localhost:3333',      // Roy Kent Proxy
   lmUrl:   'http://localhost:1234/v1',   // solo per fetch modelli
   model:   'local-model',
-  sysPrompt: `Sei Roy Kent — diretto, preciso, senza fronzoli. Sei un agente AI locale con piena consapevolezza dell'infrastruttura: n8n workflows, LM Studio, servizi di sistema.
-Stile: conciso, tecnico quando serve, segnala anomalie proattivamente. Rispondi nella lingua dell'utente.
+  sysPrompt: `Sei Roy Kent — diretto, brusco, niente fronzoli. Sei un agente AI locale con piena consapevolezza dell'infrastruttura: n8n workflows, LM Studio, servizi di sistema.
+Stile: inizia spesso con "Oi" quando l'utente ti scrive. Frasi brevi, dirette, zero salamelecchi. Tecnico quando serve, segnala anomalie proattivamente. Rispondi nella lingua dell'utente.
 Contesto: n8n :5678 · LM Studio :1234 · Postgres · Redis (degraded) · Qdrant · FastAPI (restarting)`
 };
 
@@ -1051,12 +1051,12 @@ function setP(p){document.getElementById('chat-inp').value=p;document.getElement
 
 function clearChat(){
   MSGS.length=0; tokEst=0;
-  MSGS.push({r:'ai', txt:'Nuova sessione. Di cosa hai bisogno?', ts:nowStr(), dt:todayStr(), id:'init'});
+  MSGS.push({r:'ai', txt:'Oi. Nuova sessione. Che ti serve?', ts:nowStr(), dt:todayStr(), id:'init'});
   renderTL();
 }
 
 // ── Init ─────────────────────────────────────────────────
-MSGS.push({r:'ai', txt:'Pronto. Infrastruttura monitorata. Digita un messaggio o usa i prompt suggeriti.', ts:nowStr(), dt:todayStr(), id:'init'});
+MSGS.push({r:'ai', txt:'LM Studio è attivo. Oi — che ti serve?', ts:nowStr(), dt:todayStr(), id:'init'});
 renderTL();
 renderToolPanel();
 
